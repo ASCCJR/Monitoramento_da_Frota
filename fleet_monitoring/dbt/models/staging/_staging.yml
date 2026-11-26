@@ -1,0 +1,217 @@
+version: 2
+
+models:
+  - name: stg_apontamentos
+    description: >-
+      Um registro por ciclo operacional concluído. O início descreve o fato,
+      mas o conteúdo completo do ciclo só é considerado disponível no fim.
+    config:
+      meta:
+        grain: one completed operational cycle
+        temporal_contract: availability_time equals cycle end
+    columns:
+      - name: apontamento_id
+        description: Chave original única do ciclo.
+        data_tests: [not_null, unique]
+      - name: event_time
+        description: Início do ciclo; não representa a disponibilidade do registro completo.
+      - name: inicio
+        description: Início original do ciclo em TIMESTAMP_NTZ.
+      - name: fim
+        description: Fim original do ciclo em TIMESTAMP_NTZ.
+      - name: availability_time
+        description: Proxy do primeiro instante em que o ciclo completo pode ser conhecido.
+      - name: availability_is_proxy
+        description: Verdadeiro porque a origem não contém timestamp de chegada do registro.
+      - name: duracao_segundos
+        description: Duração do ciclo concluído; proibida antes de availability_time.
+      - name: tag
+        description: Equipamento associado ao ciclo.
+      - name: frota
+        description: Frota informada nos apontamentos.
+      - name: tipo_equipamento
+        description: Tipo do equipamento normalizado apenas por trim.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Caminhao, Escavadeira]
+      - name: classe_operacional
+        description: Estado operacional do ciclo.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Hibernando, Manutenção, Operando, Parado]
+      - name: row_hash
+        description: SHA-256 determinístico dos campos funcionais da linha.
+      - name: source_path
+        description: Caminho lógico do arquivo original no manifesto Bronze.
+      - name: source_sha256
+        description: SHA-256 do arquivo original.
+      - name: source_period
+        description: Período opcional do manifesto; nulo neste arquivo consolidado.
+      - name: manifest_version
+        description: Versão do manifesto Bronze.
+      - name: ingestion_time
+        description: Timestamp do replay Bronze v2, não da chegada operacional original.
+
+  - name: stg_telemetria
+    description: >-
+      Um registro por evento de telemetria, com campos brutos preservados ao
+      lado das conversões e normalizações auditáveis.
+    config:
+      meta:
+        grain: one telemetry event
+        feature_exclusions: operador_anonimo, matricula_operador_hash
+        temporal_contract: availability_time is event_time proxy
+    columns:
+      - name: evento_telemetria_id
+        description: Chave original única do evento.
+        data_tests: [not_null, unique]
+      - name: event_time
+        description: Instante do evento em TIMESTAMP_NTZ.
+      - name: availability_time
+        description: Data_Evento usada como proxy de disponibilidade.
+      - name: availability_is_proxy
+        description: Verdadeiro porque não há timestamp histórico de chegada.
+      - name: inicio_turno
+        description: Início do turno convertido para TIMESTAMP_NTZ.
+      - name: fim_turno
+        description: Fim do turno convertido para TIMESTAMP_NTZ.
+      - name: dia_mes_origem
+        description: Dia do mês informado na origem e validado contra event_time.
+      - name: localidade
+        description: Localidade mantida para linhagem mesmo sendo constante.
+      - name: tag
+        description: Equipamento associado ao evento.
+      - name: tag_frota
+        description: Modelo e frota associados ao equipamento.
+      - name: tipo_equipamento
+        description: Tipo do equipamento.
+      - name: operador_anonimo
+        description: Código anonimizado preservado para auditoria e proibido como feature.
+      - name: matricula_operador_hash
+        description: Hash de matrícula preservado para auditoria e proibido como feature.
+      - name: alarme_id
+        description: Identificador numérico do tipo de alarme.
+      - name: alarme
+        description: Nome do alarme.
+      - name: criticidade_id
+        description: Código numérico usado como fonte da dimensão normalizada.
+      - name: criticidade_raw
+        description: Texto original, inclusive variações de encoding.
+      - name: criticidade
+        description: Criticidade normalizada pelo mapeamento do dicionário oficial.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Crítico, Não Crítico, Informacional, Outros]
+      - name: valor_raw
+        description: Valor textual recebido, inclusive literal NULL.
+      - name: valor
+        description: Valor convertido para double; literal NULL convertido para nulo.
+      - name: classe_raw
+        description: Classe textual recebida, inclusive literal NULL.
+      - name: classe
+        description: Classe limpa; literal NULL convertido para nulo.
+      - name: is_dont_go
+        description: Indicador binário original de ocorrência Don't Go.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+      - name: row_hash
+        description: SHA-256 determinístico dos campos funcionais para desempate.
+      - name: source_path
+        description: Caminho lógico do arquivo original no manifesto Bronze.
+      - name: source_sha256
+        description: SHA-256 do arquivo original.
+      - name: source_period
+        description: Período mensal declarado no manifesto de entrada.
+      - name: manifest_version
+        description: Versão do manifesto Bronze.
+      - name: ingestion_time
+        description: Timestamp do replay Bronze v2, não da chegada operacional original.
+
+  - name: stg_cma_regras
+    description: >-
+      Uma regra CMA normalizada. Preserva os componentes de um futuro motor
+      temporal sem afirmar que a regra já foi executada.
+    config:
+      meta:
+        grain: one normalized CMA rule
+        limitation: catalog association is not full rule execution
+    columns:
+      - name: cma_regra_id
+        description: SHA-256 determinístico dos seis componentes normalizados.
+        data_tests: [not_null, unique]
+      - name: tipo_regra
+        description: Categoria da regra, não o tipo do equipamento.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ALARME OEM, SISTEMA, TENDÊNCIA]
+      - name: evento
+        description: Nome técnico do evento coberto.
+      - name: situacao
+        description: Condição textual de disparo.
+      - name: quantidade
+        description: Quantidade de ocorrências exigida.
+      - name: janela_minutos
+        description: Janela em minutos; zero representa regra imediata.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 360, 720]
+      - name: nivel
+        description: Nível normalizado da regra.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Alto, Muito Alto]
+      - name: regra_imediata
+        description: Verdadeiro quando a janela é zero.
+      - name: source_path
+        description: Caminho lógico do arquivo original no manifesto Bronze.
+      - name: source_sha256
+        description: SHA-256 do arquivo original.
+      - name: source_period
+        description: Período opcional; nulo para o catálogo estático.
+      - name: manifest_version
+        description: Versão do manifesto Bronze.
+      - name: ingestion_time
+        description: Timestamp do replay Bronze v2.
+
+  - name: stg_dicionario_dados
+    description: Um registro por campo documentado no dicionário oficial da Vale.
+    config:
+      meta:
+        grain: one documented field per source table
+        role: documentation and reconciliation
+    columns:
+      - name: dicionario_campo_id
+        description: SHA-256 determinístico de tabela + feature em minúsculas.
+        data_tests: [not_null, unique]
+      - name: nome_tabela
+        description: Nome da tabela documentada.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Apontamentos, Telemetria]
+      - name: nome_feature
+        description: Nome original da feature documentada.
+      - name: tipo_dados
+        description: Tipo de dados declarado no Excel.
+      - name: descricao
+        description: Descrição funcional fornecida.
+      - name: source_sheet
+        description: Aba de origem no Excel.
+      - name: source_path
+        description: Caminho lógico do arquivo original no manifesto Bronze.
+      - name: source_sha256
+        description: SHA-256 do arquivo original.
+      - name: source_period
+        description: Período opcional; nulo para o dicionário estático.
+      - name: manifest_version
+        description: Versão do manifesto Bronze.
+      - name: ingestion_time
+        description: Timestamp do replay Bronze v2.

@@ -1,0 +1,39 @@
+bundle:
+  name: monitoramento_da_frota
+
+include:
+  - resources/*.job.yml
+
+sync:
+  include:
+    - notebooks/*.ipynb
+    - notebooks/*.py
+    - manifests/*.yml
+    - src/*.py
+  exclude:
+    - tests/**
+    - dashboards/**
+    - genie/**
+    - demo/**
+
+variables:
+  catalog:
+    description: Catálogo Unity Catalog de execução.
+  bronze_schema:
+    description: Schema para entradas brutas.
+    default: fleet_bronze
+  silver_schema:
+    description: Schema para dados limpos.
+    default: fleet_silver
+  gold_schema:
+    description: Schema para as features, scores e resultados.
+    default: fleet_gold
+  ml_schema:
+    description: Schema para modelos e tabelas de execução.
+    default: fleet_ml
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}

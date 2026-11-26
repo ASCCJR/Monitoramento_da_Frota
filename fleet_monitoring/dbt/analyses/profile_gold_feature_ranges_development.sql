@@ -1,0 +1,27 @@
+select
+    count(*) as row_count,
+    count(distinct tag) as tag_count,
+    min(prediction_timestamp) as first_prediction_timestamp,
+    max(prediction_timestamp) as last_prediction_timestamp,
+    min(events_1h) as min_events_1h,
+    max(events_1h) as max_events_1h,
+    min(events_4h) as min_events_4h,
+    max(events_4h) as max_events_4h,
+    min(events_24h) as min_events_24h,
+    max(events_24h) as max_events_24h,
+    min(critical_rate_4h) as min_critical_rate_4h,
+    max(critical_rate_4h) as max_critical_rate_4h,
+    min(cma_rate_4h) as min_cma_rate_4h,
+    max(cma_rate_4h) as max_cma_rate_4h,
+    min(activity_acceleration_4h_vs_24h) as min_activity_acceleration,
+    max(activity_acceleration_4h_vs_24h) as max_activity_acceleration,
+    max(prior_episode_count) as max_prior_episode_count,
+    max(episodes_7d) as max_episodes_7d,
+    max(episodes_30d) as max_episodes_30d,
+    count_if(hours_since_last_episode_start is null) as no_prior_episode_row_count,
+    min(hours_since_last_episode_start) as min_hours_since_last_episode,
+    max(hours_since_last_episode_start) as max_hours_since_last_episode,
+    max(max_feature_event_time_24h) as latest_feature_event_time,
+    max(max_feature_availability_time_24h) as latest_feature_availability_time
+from {{ ref('fct_features_scoring') }}
+where prediction_timestamp < timestamp_ntz'2025-06-01 00:00:00'

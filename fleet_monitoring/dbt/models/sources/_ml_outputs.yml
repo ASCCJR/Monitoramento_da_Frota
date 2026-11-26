@@ -1,0 +1,85 @@
+version: 2
+
+sources:
+  - name: v2_ml_outputs
+    description: Saídas brutas dos jobs MLflow da v2, anteriores à curadoria dbt.
+    catalog: "{{ target.catalog }}"
+    schema: "{{ env_var('FLEET_ML_SCHEMA', 'fleet_ml') }}"
+    tables:
+      - name: model_freeze_manifest
+      - name: development_fold_metrics
+      - name: policy_validation_scores
+        description: Scores e decisão analítica da política de maio por freeze.
+        columns:
+          - name: freeze_id
+            data_tests: [not_null]
+          - name: scoring_row_id
+            data_tests: [not_null]
+          - name: risk_score
+            data_tests: [not_null]
+      - name: holdout_release_manifest
+        description: Liberação idempotente do freeze para uma avaliação de junho.
+        columns:
+          - name: release_id
+            data_tests: [not_null, unique]
+          - name: freeze_id
+            data_tests: [not_null]
+      - name: holdout_evaluation_manifest
+        description: Manifesto estruturado da avaliação única do holdout.
+        columns:
+          - name: evaluation_id
+            data_tests: [not_null, unique]
+          - name: release_id
+            data_tests: [not_null]
+      - name: holdout_evaluation_metrics
+        description: Métricas longas por unidade, segmento e ranking.
+        columns:
+          - name: evaluation_id
+            data_tests: [not_null]
+          - name: metric_value
+            data_tests: [not_null]
+      - name: batch_scoring_scores
+        description: Scores target-free produzidos por lote com modelo e política congelados.
+        columns:
+          - name: scoring_run_id
+            data_tests: [not_null]
+          - name: scoring_row_id
+            data_tests: [not_null]
+          - name: risk_score
+            data_tests: [not_null]
+      - name: batch_scoring_runs
+        description: Manifesto tabular de cada intervalo processado pelo Job batch.
+        columns:
+          - name: scoring_run_id
+            data_tests: [not_null, unique]
+          - name: label_access
+            data_tests:
+              - accepted_values:
+                  arguments:
+                    values: ['NONE']
+      - name: model_feature_importance
+        description: Ganho LightGBM agregado nas 46 features originais governadas.
+        columns:
+          - name: freeze_id
+            data_tests: [not_null]
+          - name: feature_name
+            data_tests: [not_null]
+          - name: importance_normalized
+            data_tests: [not_null]
+
+  - name: v2_gold_ml_outputs
+    description: Saídas de scoring escritas pelo Job e já preservadas em NTZ.
+    catalog: "{{ target.catalog }}"
+    schema: "{{ env_var('FLEET_GOLD_SCHEMA', 'fleet_gold') }}"
+    tables:
+      - name: fct_holdout_evaluation_scores
+        description: Uma linha por observação do holdout liberado e avaliado.
+        columns:
+          - name: evaluation_id
+            data_tests: [not_null]
+          - name: scoring_row_id
+            data_tests: [not_null]
+          - name: risk_score
+            data_tests: [not_null]
+          - name: prediction_timestamp
+            data_tests: [not_null]

@@ -1,0 +1,38 @@
+resources:
+  jobs:
+    train_and_freeze:
+      name: "[${bundle.target}] Monitoramento da frota — treino e congelamento"
+      description: >-
+        Seleciona o candidato em janeiro-abril, calibra e congela a política
+        em maio. O notebook não possui consulta ao holdout de junho.
+      max_concurrent_runs: 1
+      performance_target: STANDARD
+      queue:
+        enabled: true
+      tasks:
+        - task_key: train_and_freeze
+          timeout_seconds: 7200
+          environment_key: ml_env
+          notebook_task:
+            notebook_path: ../notebooks/02_train_and_freeze.ipynb
+            source: WORKSPACE
+            base_parameters:
+              catalog: ${var.catalog}
+              gold_schema: ${var.gold_schema}
+              ml_schema: ${var.ml_schema}
+              experiment_path: /Users/${workspace.current_user.userName}/monitoramento_da_frota_${bundle.target}_ml
+              project_files_path: ${workspace.file_path}
+              optuna_trials: "20"
+              random_seed: "20260824"
+      environments:
+        - environment_key: ml_env
+          spec:
+            environment_version: "4"
+            dependencies:
+              - mlflow==3.1.0
+              - scikit-learn==1.5.2
+              - lightgbm==4.6.0
+              - optuna==4.4.0
+              - pandas==2.1.4
+              - numpy==1.26.4
+              - pyyaml==6.0.2

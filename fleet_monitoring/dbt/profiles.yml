@@ -1,0 +1,12 @@
+vale_dont_go_v2:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      catalog: "{{ env_var('FLEET_CATALOG') }}"
+      schema: "{{ env_var('FLEET_SILVER_SCHEMA', 'fleet_silver') }}"
+      host: "{{ env_var('DBT_DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DBT_ENV_SECRET_DATABRICKS_TOKEN', '') }}"
+      auth_type: oauth
+      threads: 4

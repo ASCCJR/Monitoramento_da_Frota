@@ -1,0 +1,1985 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "00000000000000000000000000000064",
+        "question": [
+          "Cheguei agora. O que precisa da minha atenção e por onde começo?"
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000065",
+        "question": [
+          "O que vale conferir no CA65926?"
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000066",
+        "question": [
+          "O CA65926 já recebeu avisos em outros dias? Mostre de 2 a 4 de junho de 2025."
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000067",
+        "question": [
+          "Quais ocorrências já estão registradas para conferir com a equipe?"
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000068",
+        "question": [
+          "Consulte a posição mais recente e prepare um resumo para a próxima equipe: por onde começar, quais ocorrências conferir e quantos caminhões estão sem dados? Inclua a data e a hora."
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "{{product_namespace}}.alert_history",
+        "description": [
+          "Alertas emitidos nas últimas 24h (início exclusivo, fim inclusivo), apenas no estado publicado; sem falhas evitadas ou manutenção executada.",
+          "Esta VIEW já aplica is_emitted_alert=true e a janela (window_start, reference_time]. COUNT(*) conta alertas das últimas 24 horas sem WHERE temporal adicional. Para informar período use window_start e reference_time, não MIN/MAX das emissões. Para contexto do alerta atual use fleet_current; esta view inclui alertas anteriores da mesma tag. reference_time é constante e não ordena alertas; prediction_timestamp ordena os instantes de emissão."
+        ],
+        "column_configs": [
+          {
+            "column_name": "active_event_count",
+            "description": [
+              "Contagem de eventos na janela de atividade anterior; não representa ocorrências físicas distintas."
+            ],
+            "synonyms": [
+              "atividade recente"
+            ]
+          },
+          {
+            "column_name": "active_last_event_time",
+            "description": [
+              "Último evento observado na janela de atividade [instante−4h, instante). Nulo não comprova falha de rede ou parada física."
+            ],
+            "synonyms": [
+              "último evento"
+            ]
+          },
+          {
+            "column_name": "alert_count",
+            "description": [
+              "1 para uma nova emissão, 0 caso contrário. Histórico de alertas usa (reference_time−24h, reference_time]."
+            ],
+            "synonyms": [
+              "quantidade de alertas"
+            ]
+          },
+          {
+            "column_name": "cma_events_4h",
+            "description": [
+              "Registros associados ao catálogo CMA na janela anterior de 4h; não equivale a executar regras completas de quantidade × tempo."
+            ],
+            "synonyms": [
+              "eventos CMA"
+            ]
+          },
+          {
+            "column_name": "cooldown_count",
+            "description": [
+              "1 por candidato suprimido no instante. Somar no tempo conta pares equipamento-instante, não equipamentos únicos."
+            ],
+            "synonyms": [
+              "intervalo entre alertas"
+            ]
+          },
+          {
+            "column_name": "critical_events_4h",
+            "description": [
+              "Registros classificados como críticos na janela anterior de 4h. Contexto observado, não atribuição causal ao modelo."
+            ],
+            "synonyms": [
+              "eventos críticos",
+              "alarmes críticos"
+            ]
+          },
+          {
+            "column_name": "display_order",
+            "exclude": true
+          },
+          {
+            "column_name": "equipment_count",
+            "description": [
+              "Constante 1 por linha. Somar apenas no snapshot atual para contar equipamentos; no histórico usar tags distintas."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "events_4h",
+            "description": [
+              "Número de registros de telemetria observados nas 4h anteriores; não são falhas distintas."
+            ],
+            "synonyms": [
+              "eventos recentes"
+            ]
+          },
+          {
+            "column_name": "has_complete_global_lookback",
+            "exclude": true
+          },
+          {
+            "column_name": "has_lookback_unavailability",
+            "exclude": true
+          },
+          {
+            "column_name": "hours_since_last_episode_start",
+            "description": [
+              "Horas desde o início do último episódio proxy observado antes do instante. Nulo se sem histórico conhecido."
+            ],
+            "synonyms": [
+              "recência de episódio"
+            ]
+          },
+          {
+            "column_name": "insufficient_count",
+            "description": [
+              "1 para estado Dados insuficientes. Diferente do suporte insuficiente de Escavadeira."
+            ],
+            "synonyms": [
+              "sem dados suficientes"
+            ]
+          },
+          {
+            "column_name": "is_emitted_alert",
+            "description": [
+              "True somente para nova emissão neste instante. Não define prioridade de investigação: consultar investigation_count em fleet_investigation. Não há atendimento registrado."
+            ],
+            "synonyms": [
+              "novo alerta",
+              "nova emissão"
+            ]
+          },
+          {
+            "column_name": "is_policy_candidate",
+            "description": [
+              "Candidato acima do limiar e entre os cinco primeiros; pode não emitir novo alerta por cooldown de 4h."
+            ],
+            "synonyms": [
+              "candidato"
+            ]
+          },
+          {
+            "column_name": "is_scoring_eligible",
+            "description": [
+              "Elegibilidade da grade histórica. Para disponibilidade exibida usar risk_score não nulo e suporte do tipo de equipamento."
+            ],
+            "synonyms": [
+              "elegibilidade"
+            ]
+          },
+          {
+            "column_name": "latest_washout_occurrence_time",
+            "description": [
+              "Última ocorrência Don't Go no washout; nunca posterior ao instante."
+            ],
+            "synonyms": [
+              "último Don't Go"
+            ]
+          },
+          {
+            "column_name": "noncritical_events_4h",
+            "description": [
+              "Registros não críticos na janela anterior de 4h."
+            ],
+            "synonyms": [
+              "eventos não críticos"
+            ]
+          },
+          {
+            "column_name": "operational_status",
+            "description": [
+              "Estado analítico no instante: Alerta emitido; Intervalo entre alertas (candidato suprimido pelo cooldown); Sem novo alerta; Dados insuficientes; Don't Go recente; Suporte insuficiente. Não registra execução de inspeção."
+            ],
+            "synonyms": [
+              "estado da emissão",
+              "situação da emissão"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "policy_cooldown_hours",
+            "description": [
+              "Intervalo mínimo da política congelada: quatro horas entre emissões da mesma tag."
+            ],
+            "synonyms": [
+              "cooldown"
+            ]
+          },
+          {
+            "column_name": "policy_max_alerts_per_cutoff",
+            "description": [
+              "Capacidade máxima congelada: cinco candidatos por instante, antes do cooldown."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "policy_threshold",
+            "description": [
+              "Limiar da política congelada, disponível nas linhas com score; não estimar ou retunar."
+            ],
+            "synonyms": [
+              "limiar"
+            ]
+          },
+          {
+            "column_name": "prediction_timestamp",
+            "description": [
+              "Instante histórico da observação horária, sem timezone confirmado. Dados do contexto são anteriores a esse instante."
+            ],
+            "synonyms": [
+              "instante",
+              "cutoff",
+              "hora"
+            ]
+          },
+          {
+            "column_name": "published_at_utc",
+            "exclude": true
+          },
+          {
+            "column_name": "rank_at_cutoff",
+            "description": [
+              "Posição no ranking original da política naquele instante; não recalcular após filtros visuais."
+            ],
+            "synonyms": [
+              "ranking"
+            ]
+          },
+          {
+            "column_name": "reference_label",
+            "exclude": true
+          },
+          {
+            "column_name": "reference_time",
+            "description": [
+              "Posição publicada dos dados. Agora, hoje, início de turno e neste instante referem-se a esta posição quando não há data explícita: informar sua data/hora, nunca substituir pela data civil do computador. É constante entre linhas históricas: ordenar por reference_time NÃO seleciona o alerta mais recente. prediction_timestamp é o instante de cada linha. Para contexto atual use fleet_investigation/fleet_current, ou prediction_timestamp = reference_time no histórico."
+            ],
+            "synonyms": [
+              "agora",
+              "horário de referência"
+            ]
+          },
+          {
+            "column_name": "replay_mode",
+            "exclude": true
+          },
+          {
+            "column_name": "replay_run_id",
+            "exclude": true
+          },
+          {
+            "column_name": "risk_score",
+            "description": [
+              "Score do modelo congelado, entre 0 e 1; não tratar como probabilidade calibrada ou certeza de falha. Nulo: indisponível ou suporte insuficiente; nunca converter para risco zero."
+            ],
+            "synonyms": [
+              "score",
+              "risco"
+            ]
+          },
+          {
+            "column_name": "score_delta_1h",
+            "description": [
+              "Score deste instante menos o score de exatamente 1 hora antes. Nulo se algum dos dois scores não existe. É mudança numérica, não explicação causal."
+            ],
+            "synonyms": [
+              "variação",
+              "mudança do score"
+            ]
+          },
+          {
+            "column_name": "scored_count",
+            "description": [
+              "1 se score está disponível e exibível, 0 caso contrário."
+            ],
+            "synonyms": [
+              "com score"
+            ]
+          },
+          {
+            "column_name": "scoring_row_id",
+            "exclude": true
+          },
+          {
+            "column_name": "tag",
+            "description": [
+              "Identificador do equipamento. Exemplos reais: CA65926, CA65924."
+            ],
+            "synonyms": [
+              "equipamento",
+              "caminhão",
+              "tag"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "tag_frota",
+            "exclude": true
+          },
+          {
+            "column_name": "tipo_equipamento",
+            "description": [
+              "Tipo na fonte: Caminhao ou Escavadeira. Para acompanhamento operacional sem tipo explícito, usar Caminhao, como o filtro inicial do dashboard. Escavadeiras têm suporte insuficiente."
+            ],
+            "synonyms": [
+              "tipo de equipamento"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "unsupported_count",
+            "description": [
+              "1 para equipamento sem suporte preditivo suficiente."
+            ],
+            "synonyms": [
+              "sem suporte"
+            ]
+          },
+          {
+            "column_name": "washout_occurrence_count",
+            "description": [
+              "Ocorrências Don't Go observadas em [instante−4h, instante], que impedem nova elegibilidade."
+            ],
+            "synonyms": [
+              "ocorrência recente"
+            ]
+          },
+          {
+            "column_name": "window_start",
+            "description": [
+              "Início da janela de 24h: reference_time menos 24h. Em alert_history a borda é exclusiva; o fim inclusivo é reference_time. MIN(prediction_timestamp) é o primeiro alerta observado, não o início da janela; pode haver horas sem alertas."
+            ],
+            "synonyms": [
+              "início do período",
+              "início da janela"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "{{product_namespace}}.equipment_events",
+        "description": [
+          "Telemetria em [reference_time-4h,reference_time), limitada ao head publicado. CMA é associação por nome, não execução de regra nem contribuição causal ao score.",
+          "Uma linha por registro de telemetria em [reference_time−4h,reference_time), limitada ao relógio publicado e equipamentos da frota. Use para identificar nomes, códigos, horários e criticidade dos eventos atuais. Não contém contribuição individual do modelo nem regras CMA executadas. Para emissão passada consulte alert_history (não reutilize estes eventos atuais para outro horário). COUNT(*) conta registros; vários podem ter o mesmo alarme. Evite joins que multipliquem linhas com fleet_history."
+        ],
+        "column_configs": [
+          {
+            "column_name": "alarme",
+            "description": [
+              "Descrição original do alarme na telemetria; agrupar por nome conta registros desse tipo."
+            ],
+            "synonyms": [
+              "evento",
+              "nome do alarme"
+            ]
+          },
+          {
+            "column_name": "alarme_id",
+            "description": [
+              "Código do tipo de alarme, não identificador único de ocorrência."
+            ],
+            "synonyms": [
+              "código do alarme"
+            ]
+          },
+          {
+            "column_name": "criticidade",
+            "description": [
+              "Classificação do registro: Crítico, Não Crítico, Informacional ou Outros; não é o nível do catálogo CMA."
+            ],
+            "synonyms": [
+              "severidade"
+            ]
+          },
+          {
+            "column_name": "event_time",
+            "description": [
+              "Horário do registro; sempre anterior à referência publicada. Mantém o horário sem fuso da fonte."
+            ],
+            "synonyms": [
+              "horário do evento"
+            ]
+          },
+          {
+            "column_name": "evento_telemetria_id",
+            "exclude": true
+          },
+          {
+            "column_name": "is_cma_associated",
+            "description": [
+              "Associação por nome normalizado ao catálogo CMA. Não significa disparo de regra quantidade × tempo ou causa do score."
+            ],
+            "synonyms": [
+              "associado ao CMA"
+            ]
+          },
+          {
+            "column_name": "is_dont_go",
+            "description": [
+              "1 quando o registro de origem indica Don't Go; não inferir condição mecânica além do registro."
+            ],
+            "synonyms": [
+              "Don't Go"
+            ]
+          },
+          {
+            "column_name": "reference_time",
+            "description": [
+              "Posição publicada dos dados. Agora, hoje, início de turno e neste instante referem-se a esta posição quando não há data explícita: informar sua data/hora, nunca substituir pela data civil do computador. É constante entre linhas históricas: ordenar por reference_time NÃO seleciona o alerta mais recente. prediction_timestamp é o instante de cada linha. Para contexto atual use fleet_investigation/fleet_current, ou prediction_timestamp = reference_time no histórico."
+            ],
+            "synonyms": [
+              "agora",
+              "horário de referência"
+            ]
+          },
+          {
+            "column_name": "replay_run_id",
+            "exclude": true
+          },
+          {
+            "column_name": "tag",
+            "description": [
+              "Identificador do equipamento. Exemplos reais: CA65926, CA65924."
+            ],
+            "synonyms": [
+              "equipamento",
+              "caminhão",
+              "tag"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "tipo_equipamento",
+            "description": [
+              "Tipo na fonte: Caminhao ou Escavadeira. Para acompanhamento operacional sem tipo explícito, usar Caminhao, como o filtro inicial do dashboard. Escavadeiras têm suporte insuficiente."
+            ],
+            "synonyms": [
+              "tipo de equipamento"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "window_start",
+            "description": [
+              "Início inclusivo da janela atual de eventos: reference_time menos quatro horas. O fim reference_time é exclusivo."
+            ],
+            "synonyms": [
+              "início do período",
+              "início da janela"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "{{product_namespace}}.fleet_current",
+        "description": [
+          "Uma linha por equipamento no relógio publicado. Agora = reference_time; default do painel é Caminhao. Estados não indicam inspeção executada.",
+          "Snapshot já limitado ao relógio publicado: uma linha por equipamento. Use para estado atual, novos alertas, score e dados insuficientes. Não somar snapshots históricos para contar a frota atual."
+        ],
+        "column_configs": [
+          {
+            "column_name": "active_event_count",
+            "description": [
+              "Contagem de eventos na janela de atividade anterior; não representa ocorrências físicas distintas."
+            ],
+            "synonyms": [
+              "atividade recente"
+            ]
+          },
+          {
+            "column_name": "active_last_event_time",
+            "description": [
+              "Último evento observado na janela de atividade [instante−4h, instante). Nulo não comprova falha de rede ou parada física."
+            ],
+            "synonyms": [
+              "último evento"
+            ]
+          },
+          {
+            "column_name": "alert_count",
+            "description": [
+              "1 para uma nova emissão, 0 caso contrário. Histórico de alertas usa (reference_time−24h, reference_time]."
+            ],
+            "synonyms": [
+              "quantidade de alertas"
+            ]
+          },
+          {
+            "column_name": "cma_events_4h",
+            "description": [
+              "Registros associados ao catálogo CMA na janela anterior de 4h; não equivale a executar regras completas de quantidade × tempo."
+            ],
+            "synonyms": [
+              "eventos CMA"
+            ]
+          },
+          {
+            "column_name": "cooldown_count",
+            "description": [
+              "1 por candidato suprimido no instante. Somar no tempo conta pares equipamento-instante, não equipamentos únicos."
+            ],
+            "synonyms": [
+              "intervalo entre alertas"
+            ]
+          },
+          {
+            "column_name": "critical_events_4h",
+            "description": [
+              "Registros classificados como críticos na janela anterior de 4h. Contexto observado, não atribuição causal ao modelo."
+            ],
+            "synonyms": [
+              "eventos críticos",
+              "alarmes críticos"
+            ]
+          },
+          {
+            "column_name": "display_order",
+            "exclude": true
+          },
+          {
+            "column_name": "equipment_count",
+            "description": [
+              "Constante 1 por linha. Somar apenas no snapshot atual para contar equipamentos; no histórico usar tags distintas."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "events_4h",
+            "description": [
+              "Número de registros de telemetria observados nas 4h anteriores; não são falhas distintas."
+            ],
+            "synonyms": [
+              "eventos recentes"
+            ]
+          },
+          {
+            "column_name": "has_complete_global_lookback",
+            "exclude": true
+          },
+          {
+            "column_name": "has_lookback_unavailability",
+            "exclude": true
+          },
+          {
+            "column_name": "hours_since_last_episode_start",
+            "description": [
+              "Horas desde o início do último episódio proxy observado antes do instante. Nulo se sem histórico conhecido."
+            ],
+            "synonyms": [
+              "recência de episódio"
+            ]
+          },
+          {
+            "column_name": "insufficient_count",
+            "description": [
+              "1 para estado Dados insuficientes. Diferente do suporte insuficiente de Escavadeira."
+            ],
+            "synonyms": [
+              "sem dados suficientes"
+            ]
+          },
+          {
+            "column_name": "is_emitted_alert",
+            "description": [
+              "True somente para nova emissão neste instante. Não define prioridade de investigação: consultar investigation_count em fleet_investigation. Não há atendimento registrado."
+            ],
+            "synonyms": [
+              "novo alerta",
+              "nova emissão"
+            ]
+          },
+          {
+            "column_name": "is_policy_candidate",
+            "description": [
+              "Candidato acima do limiar e entre os cinco primeiros; pode não emitir novo alerta por cooldown de 4h."
+            ],
+            "synonyms": [
+              "candidato"
+            ]
+          },
+          {
+            "column_name": "is_scoring_eligible",
+            "description": [
+              "Elegibilidade da grade histórica. Para disponibilidade exibida usar risk_score não nulo e suporte do tipo de equipamento."
+            ],
+            "synonyms": [
+              "elegibilidade"
+            ]
+          },
+          {
+            "column_name": "latest_washout_occurrence_time",
+            "description": [
+              "Última ocorrência Don't Go no washout; nunca posterior ao instante."
+            ],
+            "synonyms": [
+              "último Don't Go"
+            ]
+          },
+          {
+            "column_name": "noncritical_events_4h",
+            "description": [
+              "Registros não críticos na janela anterior de 4h."
+            ],
+            "synonyms": [
+              "eventos não críticos"
+            ]
+          },
+          {
+            "column_name": "operational_status",
+            "description": [
+              "Estado analítico no instante: Alerta emitido; Intervalo entre alertas (candidato suprimido pelo cooldown); Sem novo alerta; Dados insuficientes; Don't Go recente; Suporte insuficiente. Não registra execução de inspeção."
+            ],
+            "synonyms": [
+              "estado da emissão",
+              "situação da emissão"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "policy_cooldown_hours",
+            "description": [
+              "Intervalo mínimo da política congelada: quatro horas entre emissões da mesma tag."
+            ],
+            "synonyms": [
+              "cooldown"
+            ]
+          },
+          {
+            "column_name": "policy_max_alerts_per_cutoff",
+            "description": [
+              "Capacidade máxima congelada: cinco candidatos por instante, antes do cooldown."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "policy_threshold",
+            "description": [
+              "Limiar da política congelada, disponível nas linhas com score; não estimar ou retunar."
+            ],
+            "synonyms": [
+              "limiar"
+            ]
+          },
+          {
+            "column_name": "prediction_timestamp",
+            "description": [
+              "Instante histórico da observação horária, sem timezone confirmado. Dados do contexto são anteriores a esse instante."
+            ],
+            "synonyms": [
+              "instante",
+              "cutoff",
+              "hora"
+            ]
+          },
+          {
+            "column_name": "published_at_utc",
+            "exclude": true
+          },
+          {
+            "column_name": "rank_at_cutoff",
+            "description": [
+              "Posição no ranking original da política naquele instante; não recalcular após filtros visuais."
+            ],
+            "synonyms": [
+              "ranking"
+            ]
+          },
+          {
+            "column_name": "reference_label",
+            "exclude": true
+          },
+          {
+            "column_name": "reference_time",
+            "description": [
+              "Posição publicada dos dados. Agora, hoje, início de turno e neste instante referem-se a esta posição quando não há data explícita: informar sua data/hora, nunca substituir pela data civil do computador. É constante entre linhas históricas: ordenar por reference_time NÃO seleciona o alerta mais recente. prediction_timestamp é o instante de cada linha. Para contexto atual use fleet_investigation/fleet_current, ou prediction_timestamp = reference_time no histórico."
+            ],
+            "synonyms": [
+              "agora",
+              "horário de referência"
+            ]
+          },
+          {
+            "column_name": "replay_mode",
+            "exclude": true
+          },
+          {
+            "column_name": "replay_run_id",
+            "exclude": true
+          },
+          {
+            "column_name": "risk_score",
+            "description": [
+              "Score do modelo congelado, entre 0 e 1; não tratar como probabilidade calibrada ou certeza de falha. Nulo: indisponível ou suporte insuficiente; nunca converter para risco zero."
+            ],
+            "synonyms": [
+              "score",
+              "risco"
+            ]
+          },
+          {
+            "column_name": "score_delta_1h",
+            "description": [
+              "Score deste instante menos o score de exatamente 1 hora antes. Nulo se algum dos dois scores não existe. É mudança numérica, não explicação causal."
+            ],
+            "synonyms": [
+              "variação",
+              "mudança do score"
+            ]
+          },
+          {
+            "column_name": "scored_count",
+            "description": [
+              "1 se score está disponível e exibível, 0 caso contrário."
+            ],
+            "synonyms": [
+              "com score"
+            ]
+          },
+          {
+            "column_name": "scoring_row_id",
+            "exclude": true
+          },
+          {
+            "column_name": "tag",
+            "description": [
+              "Identificador do equipamento. Exemplos reais: CA65926, CA65924."
+            ],
+            "synonyms": [
+              "equipamento",
+              "caminhão",
+              "tag"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "tag_frota",
+            "exclude": true
+          },
+          {
+            "column_name": "tipo_equipamento",
+            "description": [
+              "Tipo na fonte: Caminhao ou Escavadeira. Para acompanhamento operacional sem tipo explícito, usar Caminhao, como o filtro inicial do dashboard. Escavadeiras têm suporte insuficiente."
+            ],
+            "synonyms": [
+              "tipo de equipamento"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "unsupported_count",
+            "description": [
+              "1 para equipamento sem suporte preditivo suficiente."
+            ],
+            "synonyms": [
+              "sem suporte"
+            ]
+          },
+          {
+            "column_name": "washout_occurrence_count",
+            "description": [
+              "Ocorrências Don't Go observadas em [instante−4h, instante], que impedem nova elegibilidade."
+            ],
+            "synonyms": [
+              "ocorrência recente"
+            ]
+          },
+          {
+            "column_name": "window_start",
+            "description": [
+              "Início da janela de 24h: reference_time menos 24h. Em alert_history a borda é exclusiva; o fim inclusivo é reference_time. MIN(prediction_timestamp) é o primeiro alerta observado, não o início da janela; pode haver horas sem alertas."
+            ],
+            "synonyms": [
+              "início do período",
+              "início da janela"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "{{product_namespace}}.fleet_exploration_history",
+        "description": [
+          "Histórico de avaliações publicadas desde 01/06/2025 até a referência. Janela explícita, sem avaliações futuras nem rótulos.",
+          "Histórico consultável desde 01/06/2025 até reference_time, uma linha por equipamento e avaliação horária, sem janela fixa de 24h. Para perguntas sobre dias anteriores ou período explícito, use esta view e filtre history_date ou prediction_timestamp. Emissões são is_emitted_alert=true. Antes do primeiro snapshot ativo, dados da execução congelada v2; a partir dele, snapshots do replay ativo, sem sobreposição. Nunca contém dados posteriores ao relógio publicado. Não usar esta view para contar a frota atual: fleet_investigation/fleet_current fazem isso."
+        ],
+        "column_configs": [
+          {
+            "column_name": "active_event_count",
+            "description": [
+              "Contagem de eventos na janela de atividade anterior; não representa ocorrências físicas distintas."
+            ],
+            "synonyms": [
+              "atividade recente"
+            ]
+          },
+          {
+            "column_name": "active_last_event_time",
+            "description": [
+              "Último evento observado na janela de atividade [instante−4h, instante). Nulo não comprova falha de rede ou parada física."
+            ],
+            "synonyms": [
+              "último evento"
+            ]
+          },
+          {
+            "column_name": "alert_count",
+            "description": [
+              "1 para uma nova emissão, 0 caso contrário. Histórico de alertas usa (reference_time−24h, reference_time]."
+            ],
+            "synonyms": [
+              "quantidade de alertas"
+            ]
+          },
+          {
+            "column_name": "cma_events_4h",
+            "description": [
+              "Registros associados ao catálogo CMA na janela anterior de 4h; não equivale a executar regras completas de quantidade × tempo."
+            ],
+            "synonyms": [
+              "eventos CMA"
+            ]
+          },
+          {
+            "column_name": "cooldown_count",
+            "description": [
+              "1 por candidato suprimido no instante. Somar no tempo conta pares equipamento-instante, não equipamentos únicos."
+            ],
+            "synonyms": [
+              "intervalo entre alertas"
+            ]
+          },
+          {
+            "column_name": "critical_events_4h",
+            "description": [
+              "Registros classificados como críticos na janela anterior de 4h. Contexto observado, não atribuição causal ao modelo."
+            ],
+            "synonyms": [
+              "eventos críticos",
+              "alarmes críticos"
+            ]
+          },
+          {
+            "column_name": "display_order",
+            "exclude": true
+          },
+          {
+            "column_name": "equipment_count",
+            "description": [
+              "Constante 1 por linha. Somar apenas no snapshot atual para contar equipamentos; no histórico usar tags distintas."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "events_4h",
+            "description": [
+              "Número de registros de telemetria observados nas 4h anteriores; não são falhas distintas."
+            ],
+            "synonyms": [
+              "eventos recentes"
+            ]
+          },
+          {
+            "column_name": "has_complete_global_lookback",
+            "exclude": true
+          },
+          {
+            "column_name": "has_lookback_unavailability",
+            "exclude": true
+          },
+          {
+            "column_name": "history_date",
+            "description": [
+              "Dia da avaliação horária, para filtros de período com datas inicial/final inclusivas. Sempre anterior ou igual à data da referência; o último dia pode estar incompleto."
+            ],
+            "synonyms": [
+              "data da avaliação",
+              "período histórico"
+            ]
+          },
+          {
+            "column_name": "hours_since_last_episode_start",
+            "description": [
+              "Horas desde o início do último episódio proxy observado antes do instante. Nulo se sem histórico conhecido."
+            ],
+            "synonyms": [
+              "recência de episódio"
+            ]
+          },
+          {
+            "column_name": "insufficient_count",
+            "description": [
+              "1 para estado Dados insuficientes. Diferente do suporte insuficiente de Escavadeira."
+            ],
+            "synonyms": [
+              "sem dados suficientes"
+            ]
+          },
+          {
+            "column_name": "is_emitted_alert",
+            "description": [
+              "True somente para nova emissão neste instante. Não define prioridade de investigação: consultar investigation_count em fleet_investigation. Não há atendimento registrado."
+            ],
+            "synonyms": [
+              "novo alerta",
+              "nova emissão"
+            ]
+          },
+          {
+            "column_name": "is_policy_candidate",
+            "description": [
+              "Candidato acima do limiar e entre os cinco primeiros; pode não emitir novo alerta por cooldown de 4h."
+            ],
+            "synonyms": [
+              "candidato"
+            ]
+          },
+          {
+            "column_name": "is_scoring_eligible",
+            "description": [
+              "Elegibilidade da grade histórica. Para disponibilidade exibida usar risk_score não nulo e suporte do tipo de equipamento."
+            ],
+            "synonyms": [
+              "elegibilidade"
+            ]
+          },
+          {
+            "column_name": "latest_washout_occurrence_time",
+            "description": [
+              "Última ocorrência Don't Go no washout; nunca posterior ao instante."
+            ],
+            "synonyms": [
+              "último Don't Go"
+            ]
+          },
+          {
+            "column_name": "noncritical_events_4h",
+            "description": [
+              "Registros não críticos na janela anterior de 4h."
+            ],
+            "synonyms": [
+              "eventos não críticos"
+            ]
+          },
+          {
+            "column_name": "operational_status",
+            "description": [
+              "Estado analítico no instante: Alerta emitido; Intervalo entre alertas (candidato suprimido pelo cooldown); Sem novo alerta; Dados insuficientes; Don't Go recente; Suporte insuficiente. Não registra execução de inspeção."
+            ],
+            "synonyms": [
+              "estado da emissão",
+              "situação da emissão"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "policy_cooldown_hours",
+            "description": [
+              "Intervalo mínimo da política congelada: quatro horas entre emissões da mesma tag."
+            ],
+            "synonyms": [
+              "cooldown"
+            ]
+          },
+          {
+            "column_name": "policy_max_alerts_per_cutoff",
+            "description": [
+              "Capacidade máxima congelada: cinco candidatos por instante, antes do cooldown."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "policy_threshold",
+            "description": [
+              "Limiar da política congelada, disponível nas linhas com score; não estimar ou retunar."
+            ],
+            "synonyms": [
+              "limiar"
+            ]
+          },
+          {
+            "column_name": "prediction_timestamp",
+            "description": [
+              "Instante histórico da observação horária, sem timezone confirmado. Dados do contexto são anteriores a esse instante."
+            ],
+            "synonyms": [
+              "instante",
+              "cutoff",
+              "hora"
+            ]
+          },
+          {
+            "column_name": "published_at_utc",
+            "exclude": true
+          },
+          {
+            "column_name": "rank_at_cutoff",
+            "description": [
+              "Posição no ranking original da política naquele instante; não recalcular após filtros visuais."
+            ],
+            "synonyms": [
+              "ranking"
+            ]
+          },
+          {
+            "column_name": "reference_label",
+            "exclude": true
+          },
+          {
+            "column_name": "reference_time",
+            "description": [
+              "Posição publicada dos dados. Agora, hoje, início de turno e neste instante referem-se a esta posição quando não há data explícita: informar sua data/hora, nunca substituir pela data civil do computador. É constante entre linhas históricas: ordenar por reference_time NÃO seleciona o alerta mais recente. prediction_timestamp é o instante de cada linha. Para contexto atual use fleet_investigation/fleet_current, ou prediction_timestamp = reference_time no histórico."
+            ],
+            "synonyms": [
+              "agora",
+              "horário de referência"
+            ]
+          },
+          {
+            "column_name": "replay_mode",
+            "exclude": true
+          },
+          {
+            "column_name": "risk_score",
+            "description": [
+              "Score do modelo congelado, entre 0 e 1; não tratar como probabilidade calibrada ou certeza de falha. Nulo: indisponível ou suporte insuficiente; nunca converter para risco zero."
+            ],
+            "synonyms": [
+              "score",
+              "risco"
+            ]
+          },
+          {
+            "column_name": "score_delta_1h",
+            "description": [
+              "Score deste instante menos o score de exatamente 1 hora antes. Nulo se algum dos dois scores não existe. É mudança numérica, não explicação causal."
+            ],
+            "synonyms": [
+              "variação",
+              "mudança do score"
+            ]
+          },
+          {
+            "column_name": "scored_count",
+            "description": [
+              "1 se score está disponível e exibível, 0 caso contrário."
+            ],
+            "synonyms": [
+              "com score"
+            ]
+          },
+          {
+            "column_name": "scoring_row_id",
+            "exclude": true
+          },
+          {
+            "column_name": "tag",
+            "description": [
+              "Identificador do equipamento. Exemplos reais: CA65926, CA65924."
+            ],
+            "synonyms": [
+              "equipamento",
+              "caminhão",
+              "tag"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "tag_frota",
+            "exclude": true
+          },
+          {
+            "column_name": "tipo_equipamento",
+            "description": [
+              "Tipo na fonte: Caminhao ou Escavadeira. Para acompanhamento operacional sem tipo explícito, usar Caminhao, como o filtro inicial do dashboard. Escavadeiras têm suporte insuficiente."
+            ],
+            "synonyms": [
+              "tipo de equipamento"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "unsupported_count",
+            "description": [
+              "1 para equipamento sem suporte preditivo suficiente."
+            ],
+            "synonyms": [
+              "sem suporte"
+            ]
+          },
+          {
+            "column_name": "washout_occurrence_count",
+            "description": [
+              "Ocorrências Don't Go observadas em [instante−4h, instante], que impedem nova elegibilidade."
+            ],
+            "synonyms": [
+              "ocorrência recente"
+            ]
+          },
+          {
+            "column_name": "window_start",
+            "description": [
+              "Início da disponibilidade histórica: 01/06/2025. Não é início de janela móvel de 24h nem início do período pedido pelo usuário."
+            ],
+            "synonyms": [
+              "início do período",
+              "início da janela"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "{{product_namespace}}.fleet_history",
+        "description": [
+          "Contexto de equipamentos já revelado, últimas 24h inclusivas; sem rótulos futuros. Score nulo não significa baixo risco.",
+          "Trajetória já limitada a [reference_time−24h, reference_time], com 25 instantes horários. Inclui a borda esquerda para desenhar a trajetória; para contar alertas de 24h use alert_history, cuja borda esquerda é exclusiva."
+        ],
+        "column_configs": [
+          {
+            "column_name": "active_event_count",
+            "description": [
+              "Contagem de eventos na janela de atividade anterior; não representa ocorrências físicas distintas."
+            ],
+            "synonyms": [
+              "atividade recente"
+            ]
+          },
+          {
+            "column_name": "active_last_event_time",
+            "description": [
+              "Último evento observado na janela de atividade [instante−4h, instante). Nulo não comprova falha de rede ou parada física."
+            ],
+            "synonyms": [
+              "último evento"
+            ]
+          },
+          {
+            "column_name": "alert_count",
+            "description": [
+              "1 para uma nova emissão, 0 caso contrário. Histórico de alertas usa (reference_time−24h, reference_time]."
+            ],
+            "synonyms": [
+              "quantidade de alertas"
+            ]
+          },
+          {
+            "column_name": "cma_events_4h",
+            "description": [
+              "Registros associados ao catálogo CMA na janela anterior de 4h; não equivale a executar regras completas de quantidade × tempo."
+            ],
+            "synonyms": [
+              "eventos CMA"
+            ]
+          },
+          {
+            "column_name": "cooldown_count",
+            "description": [
+              "1 por candidato suprimido no instante. Somar no tempo conta pares equipamento-instante, não equipamentos únicos."
+            ],
+            "synonyms": [
+              "intervalo entre alertas"
+            ]
+          },
+          {
+            "column_name": "critical_events_4h",
+            "description": [
+              "Registros classificados como críticos na janela anterior de 4h. Contexto observado, não atribuição causal ao modelo."
+            ],
+            "synonyms": [
+              "eventos críticos",
+              "alarmes críticos"
+            ]
+          },
+          {
+            "column_name": "display_order",
+            "exclude": true
+          },
+          {
+            "column_name": "equipment_count",
+            "description": [
+              "Constante 1 por linha. Somar apenas no snapshot atual para contar equipamentos; no histórico usar tags distintas."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "events_4h",
+            "description": [
+              "Número de registros de telemetria observados nas 4h anteriores; não são falhas distintas."
+            ],
+            "synonyms": [
+              "eventos recentes"
+            ]
+          },
+          {
+            "column_name": "has_complete_global_lookback",
+            "exclude": true
+          },
+          {
+            "column_name": "has_lookback_unavailability",
+            "exclude": true
+          },
+          {
+            "column_name": "hours_since_last_episode_start",
+            "description": [
+              "Horas desde o início do último episódio proxy observado antes do instante. Nulo se sem histórico conhecido."
+            ],
+            "synonyms": [
+              "recência de episódio"
+            ]
+          },
+          {
+            "column_name": "insufficient_count",
+            "description": [
+              "1 para estado Dados insuficientes. Diferente do suporte insuficiente de Escavadeira."
+            ],
+            "synonyms": [
+              "sem dados suficientes"
+            ]
+          },
+          {
+            "column_name": "is_emitted_alert",
+            "description": [
+              "True somente para nova emissão neste instante. Não define prioridade de investigação: consultar investigation_count em fleet_investigation. Não há atendimento registrado."
+            ],
+            "synonyms": [
+              "novo alerta",
+              "nova emissão"
+            ]
+          },
+          {
+            "column_name": "is_policy_candidate",
+            "description": [
+              "Candidato acima do limiar e entre os cinco primeiros; pode não emitir novo alerta por cooldown de 4h."
+            ],
+            "synonyms": [
+              "candidato"
+            ]
+          },
+          {
+            "column_name": "is_scoring_eligible",
+            "description": [
+              "Elegibilidade da grade histórica. Para disponibilidade exibida usar risk_score não nulo e suporte do tipo de equipamento."
+            ],
+            "synonyms": [
+              "elegibilidade"
+            ]
+          },
+          {
+            "column_name": "latest_washout_occurrence_time",
+            "description": [
+              "Última ocorrência Don't Go no washout; nunca posterior ao instante."
+            ],
+            "synonyms": [
+              "último Don't Go"
+            ]
+          },
+          {
+            "column_name": "noncritical_events_4h",
+            "description": [
+              "Registros não críticos na janela anterior de 4h."
+            ],
+            "synonyms": [
+              "eventos não críticos"
+            ]
+          },
+          {
+            "column_name": "operational_status",
+            "description": [
+              "Estado analítico no instante: Alerta emitido; Intervalo entre alertas (candidato suprimido pelo cooldown); Sem novo alerta; Dados insuficientes; Don't Go recente; Suporte insuficiente. Não registra execução de inspeção."
+            ],
+            "synonyms": [
+              "estado da emissão",
+              "situação da emissão"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "policy_cooldown_hours",
+            "description": [
+              "Intervalo mínimo da política congelada: quatro horas entre emissões da mesma tag."
+            ],
+            "synonyms": [
+              "cooldown"
+            ]
+          },
+          {
+            "column_name": "policy_max_alerts_per_cutoff",
+            "description": [
+              "Capacidade máxima congelada: cinco candidatos por instante, antes do cooldown."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "policy_threshold",
+            "description": [
+              "Limiar da política congelada, disponível nas linhas com score; não estimar ou retunar."
+            ],
+            "synonyms": [
+              "limiar"
+            ]
+          },
+          {
+            "column_name": "prediction_timestamp",
+            "description": [
+              "Instante histórico da observação horária, sem timezone confirmado. Dados do contexto são anteriores a esse instante."
+            ],
+            "synonyms": [
+              "instante",
+              "cutoff",
+              "hora"
+            ]
+          },
+          {
+            "column_name": "published_at_utc",
+            "exclude": true
+          },
+          {
+            "column_name": "rank_at_cutoff",
+            "description": [
+              "Posição no ranking original da política naquele instante; não recalcular após filtros visuais."
+            ],
+            "synonyms": [
+              "ranking"
+            ]
+          },
+          {
+            "column_name": "reference_label",
+            "exclude": true
+          },
+          {
+            "column_name": "reference_time",
+            "description": [
+              "Posição publicada dos dados. Agora, hoje, início de turno e neste instante referem-se a esta posição quando não há data explícita: informar sua data/hora, nunca substituir pela data civil do computador. É constante entre linhas históricas: ordenar por reference_time NÃO seleciona o alerta mais recente. prediction_timestamp é o instante de cada linha. Para contexto atual use fleet_investigation/fleet_current, ou prediction_timestamp = reference_time no histórico."
+            ],
+            "synonyms": [
+              "agora",
+              "horário de referência"
+            ]
+          },
+          {
+            "column_name": "replay_mode",
+            "exclude": true
+          },
+          {
+            "column_name": "replay_run_id",
+            "exclude": true
+          },
+          {
+            "column_name": "risk_score",
+            "description": [
+              "Score do modelo congelado, entre 0 e 1; não tratar como probabilidade calibrada ou certeza de falha. Nulo: indisponível ou suporte insuficiente; nunca converter para risco zero."
+            ],
+            "synonyms": [
+              "score",
+              "risco"
+            ]
+          },
+          {
+            "column_name": "score_delta_1h",
+            "description": [
+              "Score deste instante menos o score de exatamente 1 hora antes. Nulo se algum dos dois scores não existe. É mudança numérica, não explicação causal."
+            ],
+            "synonyms": [
+              "variação",
+              "mudança do score"
+            ]
+          },
+          {
+            "column_name": "scored_count",
+            "description": [
+              "1 se score está disponível e exibível, 0 caso contrário."
+            ],
+            "synonyms": [
+              "com score"
+            ]
+          },
+          {
+            "column_name": "scoring_row_id",
+            "exclude": true
+          },
+          {
+            "column_name": "tag",
+            "description": [
+              "Identificador do equipamento. Exemplos reais: CA65926, CA65924."
+            ],
+            "synonyms": [
+              "equipamento",
+              "caminhão",
+              "tag"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "tag_frota",
+            "exclude": true
+          },
+          {
+            "column_name": "tipo_equipamento",
+            "description": [
+              "Tipo na fonte: Caminhao ou Escavadeira. Para acompanhamento operacional sem tipo explícito, usar Caminhao, como o filtro inicial do dashboard. Escavadeiras têm suporte insuficiente."
+            ],
+            "synonyms": [
+              "tipo de equipamento"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "unsupported_count",
+            "description": [
+              "1 para equipamento sem suporte preditivo suficiente."
+            ],
+            "synonyms": [
+              "sem suporte"
+            ]
+          },
+          {
+            "column_name": "washout_occurrence_count",
+            "description": [
+              "Ocorrências Don't Go observadas em [instante−4h, instante], que impedem nova elegibilidade."
+            ],
+            "synonyms": [
+              "ocorrência recente"
+            ]
+          },
+          {
+            "column_name": "window_start",
+            "description": [
+              "Início da janela de 24h: reference_time menos 24h. Em alert_history a borda é exclusiva; o fim inclusivo é reference_time. MIN(prediction_timestamp) é o primeiro alerta observado, não o início da janela; pode haver horas sem alertas."
+            ],
+            "synonyms": [
+              "início do período",
+              "início da janela"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "{{product_namespace}}.fleet_investigation",
+        "description": [
+          "Uma linha por equipamento no relógio publicado. Prioridade de investigação usa candidatos antes do cooldown; evidência é contexto de telemetria, não causa do score nem atendimento.",
+          "Uma linha por equipamento no relógio publicado, derivada de fleet_current e telemetria atual. Fonte preferida para início/passagem de turno e perguntas como o que temos para hoje, preciso me preocupar, qual máquina está com problema e por onde começar. Retornar equipamentos, ordem de análise, motivos e registros para conferir, além dos totais; só totais não identificam quem investigar. Os totais resumem a frota e não devem ser somados novamente após associar detalhes por equipamento. Filtrar investigation_count=1 e ordenar investigation_order; não filtrar is_emitted_alert. Ocorrências registradas (occurrence_count=1) e dados a verificar (insufficient_count=1) são áreas separadas. Sem status de atendimento. evidence_* é contexto observado, não contribuição causal ao modelo. Não juntar com eventos para somar evidence_records: já é uma contagem agrupada."
+        ],
+        "column_configs": [
+          {
+            "column_name": "equipment_count",
+            "description": [
+              "Constante 1 por linha. Somar apenas no snapshot atual para contar equipamentos; no histórico usar tags distintas."
+            ],
+            "synonyms": []
+          },
+          {
+            "column_name": "evidence_alarm",
+            "description": [
+              "Descrição do registro para conferir, com tradução literal de dois alarmes conhecidos. Não inferir nível baixo, defeito ou diagnóstico a partir do nome."
+            ],
+            "synonyms": [
+              "registro para conferir"
+            ]
+          },
+          {
+            "column_name": "evidence_alarm_original",
+            "description": [
+              "Nome original do alarme escolhido para conferência. Seleção por Don't Go, CMA, criticidade e quantidade; não atribuição de contribuição ao score."
+            ],
+            "synonyms": [
+              "nome original do registro"
+            ]
+          },
+          {
+            "column_name": "evidence_last_time",
+            "description": [
+              "Último horário desse alarme dentro da janela atual; não é horário do aviso preditivo nem atualização da página."
+            ],
+            "synonyms": [
+              "último registro do alarme"
+            ]
+          },
+          {
+            "column_name": "evidence_period",
+            "exclude": true
+          },
+          {
+            "column_name": "evidence_records",
+            "description": [
+              "Quantidade de registros do alarme selecionado nas quatro horas anteriores à referência. Não é total de eventos, falhas distintas ou número de alertas preditivos. Nulo se nenhum registro na janela."
+            ],
+            "synonyms": [
+              "quantidade de registros"
+            ]
+          },
+          {
+            "column_name": "evidence_records_label",
+            "exclude": true
+          },
+          {
+            "column_name": "evidence_severity",
+            "description": [
+              "Criticidade recebida na telemetria do alarme escolhido; não a prioridade da investigação nem o diagnóstico."
+            ],
+            "synonyms": [
+              "criticidade do registro"
+            ]
+          },
+          {
+            "column_name": "evidence_time_label",
+            "exclude": true
+          },
+          {
+            "column_name": "insufficient_count",
+            "description": [
+              "1 para estado Dados insuficientes. Diferente do suporte insuficiente de Escavadeira."
+            ],
+            "synonyms": [
+              "sem dados suficientes"
+            ]
+          },
+          {
+            "column_name": "investigation_count",
+            "description": [
+              "1 quando o equipamento é candidato atual à investigação; permanece 1 durante o intervalo entre avisos se continuar candidato. Usar este campo para a lista de investigação."
+            ],
+            "synonyms": [
+              "sinais para investigar",
+              "lista de investigação"
+            ]
+          },
+          {
+            "column_name": "investigation_order",
+            "description": [
+              "Ordem de análise dos candidatos atuais, herdada do ranking da política antes de limitar repetição dos avisos. Menor primeiro. A ordem depende do ranking de risco congelado, nunca de evidence_records. Nove registros não justificam prioridade maior que quatro. Não é urgência operacional nem prazo de atendimento."
+            ],
+            "synonyms": [
+              "ordem de análise",
+              "prioridade"
+            ]
+          },
+          {
+            "column_name": "investigation_reason",
+            "description": [
+              "Motivo de acompanhamento pronto para exibição, com horários explícitos. Preserve esses horários ao responder, sem substituir por avaliação anterior ou nesta avaliação. Presente e mantido: candidato nos dois horários informados. Identificado às: candidato no horário informado e não na hora imediatamente anterior; não significa primeiro sinal da história, início do defeito nem inspeção humana. Datas aparecem quando os horários atravessam a meia-noite."
+            ],
+            "synonyms": [
+              "por que investigar",
+              "motivo"
+            ]
+          },
+          {
+            "column_name": "investigation_status",
+            "description": [
+              "Área de acompanhamento atual: investigar sinal, ocorrência registrada, verificar dados ou sem sinal priorizado. Não indica resolução nem liberação operacional."
+            ],
+            "synonyms": [
+              "acompanhamento atual"
+            ]
+          },
+          {
+            "column_name": "is_emitted_alert",
+            "description": [
+              "True somente para nova emissão neste instante. Não define prioridade de investigação: consultar investigation_count em fleet_investigation. Não há atendimento registrado."
+            ],
+            "synonyms": [
+              "novo alerta",
+              "nova emissão"
+            ]
+          },
+          {
+            "column_name": "is_policy_candidate",
+            "description": [
+              "Candidato acima do limiar e entre os cinco primeiros; pode não emitir novo alerta por cooldown de 4h."
+            ],
+            "synonyms": [
+              "candidato"
+            ]
+          },
+          {
+            "column_name": "occurrence_count",
+            "description": [
+              "1 para caminhão com ocorrência Don't Go registrada na janela recente; não é nova previsão nem comprova atendimento ou falha física."
+            ],
+            "synonyms": [
+              "com ocorrência registrada"
+            ]
+          },
+          {
+            "column_name": "prediction_timestamp",
+            "description": [
+              "Instante histórico da observação horária, sem timezone confirmado. Dados do contexto são anteriores a esse instante."
+            ],
+            "synonyms": [
+              "instante",
+              "cutoff",
+              "hora"
+            ]
+          },
+          {
+            "column_name": "rank_at_cutoff",
+            "description": [
+              "Posição no ranking original da política naquele instante; não recalcular após filtros visuais."
+            ],
+            "synonyms": [
+              "ranking"
+            ]
+          },
+          {
+            "column_name": "reference_label",
+            "exclude": true
+          },
+          {
+            "column_name": "reference_time",
+            "description": [
+              "Posição publicada dos dados. Agora, hoje, início de turno e neste instante referem-se a esta posição quando não há data explícita: informar sua data/hora, nunca substituir pela data civil do computador. É constante entre linhas históricas: ordenar por reference_time NÃO seleciona o alerta mais recente. prediction_timestamp é o instante de cada linha. Para contexto atual use fleet_investigation/fleet_current, ou prediction_timestamp = reference_time no histórico."
+            ],
+            "synonyms": [
+              "agora",
+              "horário de referência"
+            ]
+          },
+          {
+            "column_name": "risk_score",
+            "description": [
+              "Score do modelo congelado, entre 0 e 1; não tratar como probabilidade calibrada ou certeza de falha. Nulo: indisponível ou suporte insuficiente; nunca converter para risco zero."
+            ],
+            "synonyms": [
+              "score",
+              "risco"
+            ]
+          },
+          {
+            "column_name": "suggested_check",
+            "description": [
+              "Próxima conferência de dados sugerida. Não é ordem de manutenção, parada ou liberação do equipamento."
+            ],
+            "synonyms": [
+              "o que conferir",
+              "próximo passo"
+            ]
+          },
+          {
+            "column_name": "tag",
+            "description": [
+              "Identificador do equipamento. Exemplos reais: CA65926, CA65924."
+            ],
+            "synonyms": [
+              "equipamento",
+              "caminhão",
+              "tag"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "tipo_equipamento",
+            "description": [
+              "Tipo na fonte: Caminhao ou Escavadeira. Para acompanhamento operacional sem tipo explícito, usar Caminhao, como o filtro inicial do dashboard. Escavadeiras têm suporte insuficiente."
+            ],
+            "synonyms": [
+              "tipo de equipamento"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "washout_occurrence_count",
+            "description": [
+              "Ocorrências Don't Go observadas em [instante−4h, instante], que impedem nova elegibilidade."
+            ],
+            "synonyms": [
+              "ocorrência recente"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "0000000000000000000000000000012c",
+        "content": [
+          "## CONSTRAINTS\n- Para perguntas sobre dados atuais ou pedidos de atualização, execute uma nova consulta. Não reutilize números ou horários de respostas anteriores como estado atual.\n\n## Instructions you must follow when providing summaries\n- Responda em português, de forma objetiva. Informe data completa e hora dos dados (nunca só hoje ou agora) e os equipamentos considerados. Comece pela resposta prática e pelos registros que a sustentam; explique regras técnicas apenas quando a pergunta pedir.\n- Não afirme causa, falha evitada ou inspeção executada sem registros. Explique limitações quando forem relevantes à pergunta, sem rodapés genéricos.\n- Quando faltarem dados para responder, explicite a ausência; não invente eventos ou causas.\n- Ao apresentar prioridades, separe a ordem de análise dos registros para conferir. Não justifique a ordem pela quantidade de registros de um alarme: essa contagem é evidência para investigação, não o critério do ranking.\n- Para início ou passagem de turno, use até 180 palavras: data/hora; Para investigar (uma linha por equipamento, na ordem indicada, motivo, registro e quantidade); Ocorrências registradas; Dados a verificar. São áreas diferentes, não uma lista única de urgência. Não responda só com totais nem transforme ausência de dados em defeito ou maior prioridade. Não chame o registro de telemetria de previsão de falha.\n- Use linguagem de trabalho: nomes dos equipamentos e o que conferir. Evite SQL, score, limiar, cooldown e arquitetura na explicação, salvo pergunta explícita. Ao perguntarem qual máquina está com problema, distinga sinais para investigar de defeito confirmado; não recomende parada, reparo ou liberação sem base."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "000000000000000000000000000000c8",
+        "question": [
+          "Mostre a trajetória recente do CA65924."
+        ],
+        "sql": [
+          "SELECT h.prediction_timestamp, h.risk_score, h.score_delta_1h, h.operational_status, h.reference_time FROM {{product_namespace}}.fleet_history h WHERE h.tag = 'CA65924' ORDER BY h.prediction_timestamp"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000c9",
+        "question": [
+          "Como se distribuem os estados dos caminhões no instante atual?"
+        ],
+        "sql": [
+          "SELECT c.reference_time, c.operational_status, count(*) AS equipamentos FROM {{product_namespace}}.fleet_current c WHERE c.tipo_equipamento = 'Caminhao' GROUP BY c.reference_time, c.operational_status ORDER BY equipamentos DESC"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000ca",
+        "question": [
+          "Detalhe o contexto de eventos dos alertas recentes do CA65924."
+        ],
+        "sql": [
+          "SELECT a.prediction_timestamp, a.risk_score, a.events_4h, a.critical_events_4h, a.cma_events_4h, a.reference_time FROM {{product_namespace}}.alert_history a WHERE a.tag = 'CA65924' ORDER BY a.prediction_timestamp DESC"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000cb",
+        "question": [
+          "Quais sinais foram observados para o CA65924 no instante atual?"
+        ],
+        "sql": [
+          "SELECT c.prediction_timestamp, c.tag, c.operational_status, c.events_4h, c.critical_events_4h, c.cma_events_4h FROM {{product_namespace}}.fleet_current c WHERE c.tag = 'CA65924'"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000cc",
+        "question": [
+          "Mostre as emissões por tipo de equipamento com os limites da janela analisada."
+        ],
+        "sql": [
+          "SELECT a.tipo_equipamento, a.window_start, a.reference_time, count(*) AS alertas FROM {{product_namespace}}.alert_history a GROUP BY a.tipo_equipamento, a.window_start, a.reference_time"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000cd",
+        "question": [
+          "Liste os alarmes associados ao CMA e seus horários no CA65926 no período atual."
+        ],
+        "sql": [
+          "SELECT e.alarme_id, e.alarme, e.criticidade, count(*) AS registros, min(e.event_time) AS primeiro_registro, max(e.event_time) AS ultimo_registro, e.window_start, e.reference_time FROM {{product_namespace}}.equipment_events e WHERE e.tag = 'CA65926' AND e.is_cma_associated GROUP BY e.alarme_id, e.alarme, e.criticidade, e.window_start, e.reference_time ORDER BY registros DESC"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000ce",
+        "question": [
+          "Mostre a lista ordenada de investigação e seus registros atuais."
+        ],
+        "sql": [
+          "SELECT i.reference_time, i.investigation_order, i.tag, i.investigation_reason, i.evidence_alarm, i.evidence_records, i.evidence_last_time, i.suggested_check FROM {{product_namespace}}.fleet_investigation i WHERE i.tipo_equipamento = 'Caminhao' AND i.investigation_count = 1 ORDER BY i.investigation_order, i.tag"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000cf",
+        "question": [
+          "Separe o resumo atual entre sinais para investigar, ocorrências registradas e dados a verificar."
+        ],
+        "sql": [
+          "SELECT i.reference_time, sum(i.equipment_count) AS frota, sum(i.investigation_count) AS sinais, sum(i.occurrence_count) AS ocorrencias, sum(i.insufficient_count) AS dados_a_verificar FROM {{product_namespace}}.fleet_investigation i WHERE i.tipo_equipamento = 'Caminhao' GROUP BY i.reference_time"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000d0",
+        "question": [
+          "Mostre as emissões por dia para os caminhões entre 2 e 4 de junho de 2025."
+        ],
+        "sql": [
+          "SELECT h.history_date, sum(h.alert_count) AS emissoes, count(DISTINCT CASE WHEN h.is_emitted_alert THEN h.tag END) AS equipamentos, max(h.reference_time) AS dados_ate FROM {{product_namespace}}.fleet_exploration_history h WHERE h.tipo_equipamento = 'Caminhao' AND h.history_date BETWEEN DATE'2025-06-02' AND DATE'2025-06-04' GROUP BY h.history_date ORDER BY h.history_date"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000d1",
+        "question": [
+          "Me dê um panorama para começar o trabalho: por onde começar, quais registros conferir e quais outros pontos merecem atenção?"
+        ],
+        "sql": [
+          "WITH resumo AS (\n  SELECT max(i.reference_time) AS dados_ate,\n    sum(i.equipment_count) AS equipamentos_na_frota,\n    sum(i.investigation_count) AS sinais_para_investigar,\n    sum(i.occurrence_count) AS com_ocorrencia_registrada,\n    sum(i.insufficient_count) AS dados_a_verificar\n  FROM {{product_namespace}}.fleet_investigation i\n  WHERE i.tipo_equipamento = 'Caminhao'\n), atencao AS (\n  SELECT i.reference_time, i.tag, i.investigation_order,\n    CASE WHEN i.investigation_count = 1 THEN 'Sinal para investigar'\n         WHEN i.occurrence_count = 1 THEN 'Ocorrência já registrada'\n         ELSE 'Dados a verificar' END AS area,\n    i.investigation_reason, i.evidence_alarm, i.evidence_records,\n    i.evidence_last_time, i.suggested_check,\n    CASE WHEN i.investigation_count = 1 THEN 1\n         WHEN i.occurrence_count = 1 THEN 2 ELSE 3 END AS ordem_apresentacao\n  FROM {{product_namespace}}.fleet_investigation i\n  WHERE i.tipo_equipamento = 'Caminhao'\n    AND (i.investigation_count = 1 OR i.occurrence_count = 1 OR i.insufficient_count = 1)\n)\nSELECT r.dados_ate, r.equipamentos_na_frota, r.sinais_para_investigar,\n  r.com_ocorrencia_registrada, r.dados_a_verificar, a.area,\n  a.investigation_order AS ordem_de_analise, a.tag AS equipamento,\n  a.investigation_reason AS motivo, a.evidence_alarm AS registro_para_conferir,\n  a.evidence_records AS registros_ultimas_4h, a.evidence_last_time AS ultimo_registro,\n  a.suggested_check AS o_que_conferir\nFROM resumo r LEFT JOIN atencao a ON a.reference_time = r.dados_ate\nORDER BY a.ordem_apresentacao, a.investigation_order, a.tag\nLIMIT 50"
+        ]
+      }
+    ]
+  },
+  "benchmarks": {
+    "questions": [
+      {
+        "id": "00000000000000000000000000000190",
+        "question": [
+          "Liste as tags dos caminhões que receberam um novo alerta agora e seus scores. Se não houver, informe que não houve nova emissão; isso não significa ausência de sinais para investigar."
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT c.tag, c.risk_score, c.reference_time FROM {{product_namespace}}.fleet_current c WHERE c.tipo_equipamento = 'Caminhao' AND c.is_emitted_alert ORDER BY c.risk_score DESC, c.tag"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000191",
+        "question": [
+          "Qual é o score atual e a variação de uma hora do CA65926?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT c.tag, c.risk_score, c.score_delta_1h, c.reference_time FROM {{product_namespace}}.fleet_current c WHERE c.tag = 'CA65926'"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000192",
+        "question": [
+          "Quantos caminhões estão no estado Dados insuficientes agora?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT c.reference_time, sum(c.insufficient_count) AS equipamentos FROM {{product_namespace}}.fleet_current c WHERE c.tipo_equipamento = 'Caminhao' GROUP BY c.reference_time"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000193",
+        "question": [
+          "Quantos alertas de caminhões foram emitidos nas últimas 24 horas já reveladas?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT count(*) AS alertas FROM {{product_namespace}}.alert_history a WHERE a.tipo_equipamento = 'Caminhao'"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000194",
+        "question": [
+          "Quantas escavadeiras têm suporte insuficiente no instante atual?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT c.reference_time, sum(c.unsupported_count) AS equipamentos FROM {{product_namespace}}.fleet_current c WHERE c.tipo_equipamento = 'Escavadeira' GROUP BY c.reference_time"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000195",
+        "question": [
+          "Quantos registros associados ao CMA há nas últimas 4 horas do CA65926 e quais alarmes são? Informe a referência."
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT e.alarme, count(*) AS registros, e.reference_time FROM {{product_namespace}}.equipment_events e WHERE e.tag = 'CA65926' AND e.is_cma_associated GROUP BY e.alarme, e.reference_time ORDER BY e.alarme"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000196",
+        "question": [
+          "O CA65924 deve continuar na investigação mesmo sem novo aviso agora? Compare sua posição com a do CA65926 e informe os registros para conferir."
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT i.reference_time, i.tag, i.investigation_order, i.investigation_count, i.is_emitted_alert, i.investigation_reason, i.evidence_alarm_original, i.evidence_records, i.evidence_last_time FROM {{product_namespace}}.fleet_investigation i WHERE i.tag IN ('CA65924', 'CA65926') ORDER BY i.investigation_order"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000197",
+        "question": [
+          "Quais caminhões têm ocorrência já registrada e qual registro aparece para conferência?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT i.tag, i.evidence_alarm_original, i.evidence_records, i.evidence_last_time, i.reference_time FROM {{product_namespace}}.fleet_investigation i WHERE i.tipo_equipamento = 'Caminhao' AND i.occurrence_count = 1 ORDER BY i.tag"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000198",
+        "question": [
+          "Quais caminhões precisam de verificação dos dados e qual é o motivo?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT i.tag, i.investigation_reason, i.reference_time FROM {{product_namespace}}.fleet_investigation i WHERE i.tipo_equipamento = 'Caminhao' AND i.insufficient_count = 1 ORDER BY i.tag"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000199",
+        "question": [
+          "Compare quantos avisos receberam CA65924 e CA65926 entre 2 e 4 de junho de 2025, incluindo os dois dias extremos."
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT h.tag, sum(h.alert_count) AS emissoes, max(h.reference_time) AS dados_ate FROM {{product_namespace}}.fleet_exploration_history h WHERE h.tag IN ('CA65924','CA65926') AND h.history_date BETWEEN DATE'2025-06-02' AND DATE'2025-06-04' GROUP BY h.tag ORDER BY h.tag"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "0000000000000000000000000000019a",
+        "question": [
+          "Bom dia, assumi o acompanhamento da frota. Preciso me preocupar com algo agora?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "WITH resumo AS (\n  SELECT max(i.reference_time) AS dados_ate,\n    sum(i.equipment_count) AS equipamentos_na_frota,\n    sum(i.investigation_count) AS sinais_para_investigar,\n    sum(i.occurrence_count) AS com_ocorrencia_registrada,\n    sum(i.insufficient_count) AS dados_a_verificar\n  FROM {{product_namespace}}.fleet_investigation i\n  WHERE i.tipo_equipamento = 'Caminhao'\n), atencao AS (\n  SELECT i.reference_time, i.tag, i.investigation_order,\n    CASE WHEN i.investigation_count = 1 THEN 'Sinal para investigar'\n         WHEN i.occurrence_count = 1 THEN 'Ocorrência já registrada'\n         ELSE 'Dados a verificar' END AS area,\n    i.investigation_reason, i.evidence_alarm, i.evidence_records,\n    i.evidence_last_time, i.suggested_check,\n    CASE WHEN i.investigation_count = 1 THEN 1\n         WHEN i.occurrence_count = 1 THEN 2 ELSE 3 END AS ordem_apresentacao\n  FROM {{product_namespace}}.fleet_investigation i\n  WHERE i.tipo_equipamento = 'Caminhao'\n    AND (i.investigation_count = 1 OR i.occurrence_count = 1 OR i.insufficient_count = 1)\n)\nSELECT r.dados_ate, r.equipamentos_na_frota, r.sinais_para_investigar,\n  r.com_ocorrencia_registrada, r.dados_a_verificar, a.area,\n  a.investigation_order AS ordem_de_analise, a.tag AS equipamento,\n  a.investigation_reason AS motivo, a.evidence_alarm AS registro_para_conferir,\n  a.evidence_records AS registros_ultimas_4h, a.evidence_last_time AS ultimo_registro,\n  a.suggested_check AS o_que_conferir\nFROM resumo r LEFT JOIN atencao a ON a.reference_time = r.dados_ate\nORDER BY a.ordem_apresentacao, a.investigation_order, a.tag\nLIMIT 50"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "0000000000000000000000000000019b",
+        "question": [
+          "Faça um resumo para a próxima equipe: quem investigar, o que conferir e quais dados estão faltando?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "WITH resumo AS (\n  SELECT max(i.reference_time) AS dados_ate,\n    sum(i.equipment_count) AS equipamentos_na_frota,\n    sum(i.investigation_count) AS sinais_para_investigar,\n    sum(i.occurrence_count) AS com_ocorrencia_registrada,\n    sum(i.insufficient_count) AS dados_a_verificar\n  FROM {{product_namespace}}.fleet_investigation i\n  WHERE i.tipo_equipamento = 'Caminhao'\n), atencao AS (\n  SELECT i.reference_time, i.tag, i.investigation_order,\n    CASE WHEN i.investigation_count = 1 THEN 'Sinal para investigar'\n         WHEN i.occurrence_count = 1 THEN 'Ocorrência já registrada'\n         ELSE 'Dados a verificar' END AS area,\n    i.investigation_reason, i.evidence_alarm, i.evidence_records,\n    i.evidence_last_time, i.suggested_check,\n    CASE WHEN i.investigation_count = 1 THEN 1\n         WHEN i.occurrence_count = 1 THEN 2 ELSE 3 END AS ordem_apresentacao\n  FROM {{product_namespace}}.fleet_investigation i\n  WHERE i.tipo_equipamento = 'Caminhao'\n    AND (i.investigation_count = 1 OR i.occurrence_count = 1 OR i.insufficient_count = 1)\n)\nSELECT r.dados_ate, r.equipamentos_na_frota, r.sinais_para_investigar,\n  r.com_ocorrencia_registrada, r.dados_a_verificar, a.area,\n  a.investigation_order AS ordem_de_analise, a.tag AS equipamento,\n  a.investigation_reason AS motivo, a.evidence_alarm AS registro_para_conferir,\n  a.evidence_records AS registros_ultimas_4h, a.evidence_last_time AS ultimo_registro,\n  a.suggested_check AS o_que_conferir\nFROM resumo r LEFT JOIN atencao a ON a.reference_time = r.dados_ate\nORDER BY a.ordem_apresentacao, a.investigation_order, a.tag\nLIMIT 50"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

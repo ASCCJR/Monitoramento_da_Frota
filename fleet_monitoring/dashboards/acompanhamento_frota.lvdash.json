@@ -1,0 +1,2609 @@
+{
+  "datasets": [
+    {
+      "name": "overview",
+      "displayName": "Frota · prioridades atuais",
+      "queryLines": [
+        "SELECT * FROM fleet_investigation ORDER BY investigation_order NULLS LAST, tag\n"
+      ]
+    },
+    {
+      "name": "priorities",
+      "displayName": "Sinais para investigar",
+      "queryLines": [
+        "SELECT * FROM fleet_investigation WHERE investigation_count = 1 ORDER BY investigation_order, tag\n"
+      ]
+    },
+    {
+      "name": "occurrences",
+      "displayName": "Ocorrências registradas",
+      "queryLines": [
+        "SELECT * FROM fleet_investigation WHERE occurrence_count = 1 ORDER BY evidence_last_time DESC, tag\n"
+      ]
+    },
+    {
+      "name": "data_gaps",
+      "displayName": "Dados a verificar",
+      "queryLines": [
+        "SELECT * FROM fleet_investigation WHERE insufficient_count = 1 ORDER BY tag\n"
+      ]
+    },
+    {
+      "name": "history",
+      "displayName": "Histórico para exploração",
+      "queryLines": [
+        "WITH history AS (\n SELECT * FROM fleet_exploration_history\n), records AS (\n SELECT concat('aviso:',scoring_row_id) AS record_id,\n   tag,tipo_equipamento,reference_time,history_date,\n   prediction_timestamp AS record_time,\n   'Aviso do sistema' AS record_type,\n   'Sinal de risco selecionado para investigação' AS record_detail,\n   1 AS alert_count,0 AS dontgo_count,1 AS visible_record\n FROM history WHERE is_emitted_alert\n UNION ALL\n SELECT concat('dontgo:',CAST(evento_telemetria_id AS STRING)) AS record_id,\n   tag,tipo_equipamento,reference_time,CAST(event_time AS DATE) AS history_date,\n   event_time AS record_time,\n   'Don’t Go registrado' AS record_type,\n   COALESCE(CASE alarme\n     WHEN 'Engine Coolant Level - Active' THEN 'Nível do líquido de arrefecimento'\n     WHEN 'Transmission Oil Level - Active' THEN 'Nível do óleo da transmissão'\n     ELSE alarme END,'Sem descrição') AS record_detail,\n   0 AS alert_count,1 AS dontgo_count,1 AS visible_record\n FROM equipment_event_history\n WHERE is_dont_go=1 AND event_time >= TIMESTAMP_NTZ'2025-06-01 00:00:00'\n UNION ALL\n SELECT DISTINCT concat('cobertura:',tag,':',CAST(history_date AS STRING)) AS record_id,\n   tag,tipo_equipamento,reference_time,history_date,\n   CAST(history_date AS TIMESTAMP_NTZ) AS record_time,\n   'Sem registro' AS record_type,'—' AS record_detail,\n   0 AS alert_count,0 AS dontgo_count,0 AS visible_record\n FROM history\n)\nSELECT *,date_format(record_time,'dd/MM/yyyy HH:mm:ss') AS record_time_label,\n   CASE WHEN alert_count=1 THEN record_id END AS alert_record_id,\n   CASE WHEN dontgo_count=1 THEN record_id END AS dontgo_record_id,\n   CASE WHEN alert_count=1 THEN tag END AS emitting_tag,\n   CASE WHEN dontgo_count=1 THEN tag END AS dontgo_tag\nFROM records ORDER BY record_time DESC,tag,record_id\n"
+      ]
+    },
+    {
+      "name": "alerts",
+      "displayName": "Alertas nas últimas 24h",
+      "queryLines": [
+        "SELECT *,\n  CASE WHEN is_emitted_alert THEN tag END AS emitting_tag,\n  CASE WHEN tipo_equipamento = 'Caminhao' AND washout_occurrence_count > 0 THEN 1 ELSE 0 END AS dontgo_count,\n  CASE WHEN risk_score IS NULL THEN 'Sem score disponível' WHEN is_emitted_alert THEN 'Novo alerta emitido' WHEN is_policy_candidate THEN 'Já alertado · intervalo de 4h' ELSE 'Sem novo alerta' END AS operational_status_label,\n  CASE WHEN tipo_equipamento <> 'Caminhao' THEN 'Sem suporte do modelo' WHEN washout_occurrence_count > 0 THEN 'Don’t Go recente' WHEN risk_score IS NOT NULL THEN 'Com avaliação' ELSE 'Dados insuficientes' END AS assessment_condition,\n  COALESCE(date_format(`active_last_event_time`, 'dd/MM/yyyy HH:mm'), '—') AS active_last_event_time_display,\n  COALESCE(CAST(CAST(`cma_events_4h` AS BIGINT) AS STRING), '—') AS cma_events_4h_display,\n  COALESCE(CAST(CAST(`critical_events_4h` AS BIGINT) AS STRING), '—') AS critical_events_4h_display,\n  COALESCE(CAST(CAST(`events_4h` AS BIGINT) AS STRING), '—') AS events_4h_display,\n  COALESCE(replace(format_number(round(`policy_threshold`, 3), 3), '.', ','), '—') AS policy_threshold_display,\n  COALESCE(date_format(`prediction_timestamp`, 'dd/MM/yyyy HH:mm'), '—') AS prediction_timestamp_display,\n  COALESCE(date_format(`published_at_utc`, 'dd/MM/yyyy HH:mm'), '—') AS published_at_utc_display,\n  COALESCE(CAST(CAST(`rank_at_cutoff` AS BIGINT) AS STRING), '—') AS rank_at_cutoff_display,\n  COALESCE(replace(format_number(round(`risk_score`, 3), 3), '.', ','), '—') AS risk_score_display,\n  COALESCE(replace(format_number(round(`score_delta_1h`, 3), 3), '.', ','), '—') AS score_delta_1h_display\nFROM alert_history ORDER BY prediction_timestamp DESC, risk_score DESC\n"
+      ]
+    },
+    {
+      "name": "clock",
+      "displayName": "Atualização dos dados",
+      "queryLines": [
+        "SELECT *,\n  concat(date_format(timestampadd(HOUR, -24, reference_time), 'dd/MM/yyyy HH:mm'), ' → ', date_format(reference_time, 'dd/MM/yyyy HH:mm')) AS history_period_label,\n  COALESCE(date_format(`published_at_utc`, 'dd/MM/yyyy HH:mm'), '—') AS published_at_utc_display\nFROM replay_status\n"
+      ]
+    },
+    {
+      "name": "equipment_current",
+      "displayName": "Avaliação selecionada",
+      "queryLines": [
+        "WITH ordered AS (\n SELECT h.*,\n   max(CASE WHEN h.is_emitted_alert THEN h.prediction_timestamp END)\n     OVER (PARTITION BY h.tag ORDER BY h.prediction_timestamp\n       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_alert,\n   lag(h.is_policy_candidate) OVER (PARTITION BY h.tag ORDER BY h.prediction_timestamp) AS previous_candidate\n FROM fleet_exploration_history h WHERE h.tag = :equipment_tag\n), selected AS (\n SELECT * FROM ordered\n WHERE prediction_timestamp = CASE WHEN :assessment_choice = 'Mais recente'\n   THEN reference_time\n   ELSE CAST(try_to_timestamp(:assessment_choice, 'dd/MM/yyyy HH:mm') AS TIMESTAMP_NTZ) END\n)\nSELECT s.*,\n date_format(s.prediction_timestamp,'dd/MM/yyyy HH:mm') AS evaluation_label,\n concat(date_format(timestampadd(HOUR,-4,s.prediction_timestamp),'dd/MM HH:mm'),\n   ' até antes de ',date_format(s.prediction_timestamp,'dd/MM HH:mm')) AS records_period,\n CASE WHEN s.is_emitted_alert THEN 'Aviso emitido'\n   WHEN s.is_policy_candidate THEN 'Sinal em acompanhamento'\n   WHEN s.risk_score IS NULL THEN 'Sem avaliação de risco'\n   ELSE 'Sem sinal priorizado' END AS decision_label,\n CASE WHEN s.tipo_equipamento <> 'Caminhao' THEN 'Não há modelo disponível para este tipo de equipamento.'\n   WHEN s.washout_occurrence_count > 0 THEN concat('Já havia ocorrência registrada antes desta avaliação. Último registro: ',date_format(s.latest_washout_occurrence_time,'dd/MM HH:mm'),'.')\n   WHEN NOT s.has_complete_global_lookback THEN 'O histórico anterior a esta avaliação ainda estava incompleto.'\n   WHEN s.has_lookback_unavailability THEN 'Havia uma lacuna nos dados anteriores a esta avaliação.'\n   WHEN s.active_event_count = 0 THEN 'Não havia telemetria nas quatro horas anteriores a esta avaliação.'\n   WHEN s.risk_score IS NULL THEN 'Não há resultado de risco disponível para este horário.'\n   WHEN s.is_emitted_alert THEN 'O risco ficou acima do limite, o caminhão entrou entre os prioritários e as regras de envio permitiram um novo aviso.'\n   WHEN s.is_policy_candidate THEN 'O risco continuava entre os prioritários. Um aviso anterior ainda estava dentro do intervalo mínimo de quatro horas.'\n   WHEN s.risk_score < s.policy_threshold THEN 'O risco ficou abaixo do limite usado para selecionar sinais.'\n   ELSE 'O caminhão não entrou entre os cinco primeiros candidatos desse horário.' END AS decision_reason,\n CASE WHEN s.is_policy_candidate THEN 'Conferir o histórico e os registros anteriores a esta avaliação'\n   WHEN s.washout_occurrence_count > 0 THEN 'Conferir a ocorrência e o atendimento com a equipe'\n   WHEN s.risk_score IS NULL THEN 'Conferir a disponibilidade dos dados nesse horário'\n   ELSE 'Acompanhar as avaliações seguintes' END AS next_step,\n COALESCE(replace(format_number(round(s.risk_score,3),3),'.',','),'—') AS risk_score_display,\n COALESCE(replace(format_number(round(s.policy_threshold,3),3),'.',','),'—') AS policy_threshold_display,\n COALESCE(CAST(s.rank_at_cutoff AS STRING),'—') AS rank_at_cutoff_display,\n COALESCE(date_format(s.previous_alert,'dd/MM/yyyy HH:mm'),'Não consta no histórico disponível') AS previous_alert_label\nFROM selected s\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "equipment_tag",
+          "displayName": "Equipamento",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "CA65926"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "keyword": "assessment_choice",
+          "displayName": "Avaliação",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "Mais recente"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "equipment_history",
+      "displayName": "Trajetória do equipamento",
+      "queryLines": [
+        "SELECT h.*, COALESCE(max(policy_threshold) OVER (), (SELECT max(policy_threshold) FROM fleet_current)) AS threshold_line, sum(CASE WHEN risk_score IS NULL THEN 1 ELSE 0 END) OVER (ORDER BY prediction_timestamp) AS score_segment, timestampdiff(SECOND, TIMESTAMP_NTZ'1970-01-01', prediction_timestamp) * 1000 AS chart_time, date_format(prediction_timestamp, 'dd/MM HH:mm') AS hour_label, timestampdiff(SECOND, TIMESTAMP_NTZ'1970-01-01', CASE WHEN :assessment_choice = 'Mais recente' THEN reference_time ELSE CAST(try_to_timestamp(:assessment_choice,'dd/MM/yyyy HH:mm') AS TIMESTAMP_NTZ) END) * 1000 AS chart_reference, timestampdiff(SECOND, TIMESTAMP_NTZ'1970-01-01', greatest(window_start, timestampadd(MINUTE, -30, prediction_timestamp))) * 1000 AS band_start, timestampdiff(SECOND, TIMESTAMP_NTZ'1970-01-01', least(CASE WHEN :assessment_choice = 'Mais recente' THEN reference_time ELSE CAST(try_to_timestamp(:assessment_choice,'dd/MM/yyyy HH:mm') AS TIMESTAMP_NTZ) END, timestampadd(MINUTE, 30, prediction_timestamp))) * 1000 AS band_end FROM (SELECT *,\n  CASE WHEN is_emitted_alert THEN tag END AS emitting_tag,\n  CASE WHEN tipo_equipamento = 'Caminhao' AND washout_occurrence_count > 0 THEN 1 ELSE 0 END AS dontgo_count,\n  CASE WHEN risk_score IS NULL THEN 'Sem score disponível' WHEN is_emitted_alert THEN 'Novo alerta emitido' WHEN is_policy_candidate THEN 'Já alertado · intervalo de 4h' ELSE 'Sem novo alerta' END AS operational_status_label,\n  CASE WHEN tipo_equipamento <> 'Caminhao' THEN 'Sem suporte do modelo' WHEN washout_occurrence_count > 0 THEN 'Don’t Go recente' WHEN risk_score IS NOT NULL THEN 'Com avaliação' ELSE 'Dados insuficientes' END AS assessment_condition,\n  COALESCE(date_format(`active_last_event_time`, 'dd/MM/yyyy HH:mm'), '—') AS active_last_event_time_display,\n  COALESCE(CAST(CAST(`cma_events_4h` AS BIGINT) AS STRING), '—') AS cma_events_4h_display,\n  COALESCE(CAST(CAST(`critical_events_4h` AS BIGINT) AS STRING), '—') AS critical_events_4h_display,\n  COALESCE(CAST(CAST(`events_4h` AS BIGINT) AS STRING), '—') AS events_4h_display,\n  COALESCE(replace(format_number(round(`policy_threshold`, 3), 3), '.', ','), '—') AS policy_threshold_display,\n  COALESCE(date_format(`prediction_timestamp`, 'dd/MM/yyyy HH:mm'), '—') AS prediction_timestamp_display,\n  COALESCE(date_format(`published_at_utc`, 'dd/MM/yyyy HH:mm'), '—') AS published_at_utc_display,\n  COALESCE(CAST(CAST(`rank_at_cutoff` AS BIGINT) AS STRING), '—') AS rank_at_cutoff_display,\n  COALESCE(replace(format_number(round(`risk_score`, 3), 3), '.', ','), '—') AS risk_score_display,\n  COALESCE(replace(format_number(round(`score_delta_1h`, 3), 3), '.', ','), '—') AS score_delta_1h_display\nFROM fleet_exploration_history WHERE tag = :equipment_tag) h WHERE prediction_timestamp BETWEEN timestampadd(DAY,-7,CASE WHEN :assessment_choice = 'Mais recente' THEN reference_time ELSE CAST(try_to_timestamp(:assessment_choice,'dd/MM/yyyy HH:mm') AS TIMESTAMP_NTZ) END) AND CASE WHEN :assessment_choice = 'Mais recente' THEN reference_time ELSE CAST(try_to_timestamp(:assessment_choice,'dd/MM/yyyy HH:mm') AS TIMESTAMP_NTZ) END ORDER BY prediction_timestamp\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "equipment_tag",
+          "displayName": "Equipamento",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "CA65926"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "keyword": "assessment_choice",
+          "displayName": "Avaliação",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "Mais recente"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "equipment_context",
+      "displayName": "Critérios da avaliação selecionada",
+      "queryLines": [
+        "WITH evaluation AS (WITH ordered AS (\n SELECT h.*,\n   max(CASE WHEN h.is_emitted_alert THEN h.prediction_timestamp END)\n     OVER (PARTITION BY h.tag ORDER BY h.prediction_timestamp\n       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_alert,\n   lag(h.is_policy_candidate) OVER (PARTITION BY h.tag ORDER BY h.prediction_timestamp) AS previous_candidate\n FROM fleet_exploration_history h WHERE h.tag = :equipment_tag\n), selected AS (\n SELECT * FROM ordered\n WHERE prediction_timestamp = CASE WHEN :assessment_choice = 'Mais recente'\n   THEN reference_time\n   ELSE CAST(try_to_timestamp(:assessment_choice, 'dd/MM/yyyy HH:mm') AS TIMESTAMP_NTZ) END\n)\nSELECT s.*,\n date_format(s.prediction_timestamp,'dd/MM/yyyy HH:mm') AS evaluation_label,\n concat(date_format(timestampadd(HOUR,-4,s.prediction_timestamp),'dd/MM HH:mm'),\n   ' até antes de ',date_format(s.prediction_timestamp,'dd/MM HH:mm')) AS records_period,\n CASE WHEN s.is_emitted_alert THEN 'Aviso emitido'\n   WHEN s.is_policy_candidate THEN 'Sinal em acompanhamento'\n   WHEN s.risk_score IS NULL THEN 'Sem avaliação de risco'\n   ELSE 'Sem sinal priorizado' END AS decision_label,\n CASE WHEN s.tipo_equipamento <> 'Caminhao' THEN 'Não há modelo disponível para este tipo de equipamento.'\n   WHEN s.washout_occurrence_count > 0 THEN concat('Já havia ocorrência registrada antes desta avaliação. Último registro: ',date_format(s.latest_washout_occurrence_time,'dd/MM HH:mm'),'.')\n   WHEN NOT s.has_complete_global_lookback THEN 'O histórico anterior a esta avaliação ainda estava incompleto.'\n   WHEN s.has_lookback_unavailability THEN 'Havia uma lacuna nos dados anteriores a esta avaliação.'\n   WHEN s.active_event_count = 0 THEN 'Não havia telemetria nas quatro horas anteriores a esta avaliação.'\n   WHEN s.risk_score IS NULL THEN 'Não há resultado de risco disponível para este horário.'\n   WHEN s.is_emitted_alert THEN 'O risco ficou acima do limite, o caminhão entrou entre os prioritários e as regras de envio permitiram um novo aviso.'\n   WHEN s.is_policy_candidate THEN 'O risco continuava entre os prioritários. Um aviso anterior ainda estava dentro do intervalo mínimo de quatro horas.'\n   WHEN s.risk_score < s.policy_threshold THEN 'O risco ficou abaixo do limite usado para selecionar sinais.'\n   ELSE 'O caminhão não entrou entre os cinco primeiros candidatos desse horário.' END AS decision_reason,\n CASE WHEN s.is_policy_candidate THEN 'Conferir o histórico e os registros anteriores a esta avaliação'\n   WHEN s.washout_occurrence_count > 0 THEN 'Conferir a ocorrência e o atendimento com a equipe'\n   WHEN s.risk_score IS NULL THEN 'Conferir a disponibilidade dos dados nesse horário'\n   ELSE 'Acompanhar as avaliações seguintes' END AS next_step,\n COALESCE(replace(format_number(round(s.risk_score,3),3),'.',','),'—') AS risk_score_display,\n COALESCE(replace(format_number(round(s.policy_threshold,3),3),'.',','),'—') AS policy_threshold_display,\n COALESCE(CAST(s.rank_at_cutoff AS STRING),'—') AS rank_at_cutoff_display,\n COALESCE(date_format(s.previous_alert,'dd/MM/yyyy HH:mm'),'Não consta no histórico disponível') AS previous_alert_label\nFROM selected s )\nSELECT tag,tipo_equipamento,item.* FROM evaluation\nLATERAL VIEW inline(array(\n named_struct('context_order',1,'indicador','Limite de seleção','valor',policy_threshold_display),\n named_struct('context_order',2,'indicador','Posição no horário','valor',rank_at_cutoff_display),\n named_struct('context_order',3,'indicador','Aviso anterior','valor',previous_alert_label)\n)) item ORDER BY context_order\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "equipment_tag",
+          "displayName": "Equipamento",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "CA65926"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "keyword": "assessment_choice",
+          "displayName": "Avaliação",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "Mais recente"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "equipment_events",
+      "displayName": "Registros anteriores à avaliação",
+      "queryLines": [
+        "WITH ordered AS (\n SELECT h.*,\n   max(CASE WHEN h.is_emitted_alert THEN h.prediction_timestamp END)\n     OVER (PARTITION BY h.tag ORDER BY h.prediction_timestamp\n       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_alert,\n   lag(h.is_policy_candidate) OVER (PARTITION BY h.tag ORDER BY h.prediction_timestamp) AS previous_candidate\n FROM fleet_exploration_history h WHERE h.tag = :equipment_tag\n), selected AS (\n SELECT * FROM ordered\n WHERE prediction_timestamp = CASE WHEN :assessment_choice = 'Mais recente'\n   THEN reference_time\n   ELSE CAST(try_to_timestamp(:assessment_choice, 'dd/MM/yyyy HH:mm') AS TIMESTAMP_NTZ) END\n)\nSELECT e.*, s.prediction_timestamp AS evaluation_time,\n date_format(e.event_time,'dd/MM HH:mm:ss') AS event_label,\n date_format(e.event_time,'yyyy-MM-dd HH:mm:ss') AS last_event_label,\n COALESCE(CAST(e.alarme_id AS STRING),'—') AS alarm_code,\n COALESCE(CASE e.alarme\n   WHEN 'Engine Coolant Level - Active' THEN 'Nível do líquido de arrefecimento'\n   WHEN 'Engine Coolant Level - Inactive' THEN 'Nível do líquido de arrefecimento · desativação do alarme'\n   WHEN 'Transmission Oil Level - Active' THEN 'Nível do óleo da transmissão'\n   WHEN 'Transmission Oil Level - Inactive' THEN 'Nível do óleo da transmissão · desativação do alarme'\n   ELSE e.alarme END,'Sem descrição') AS alarm_label,\n COALESCE(e.criticidade,'Não informada') AS severity_label,\n CASE WHEN e.is_cma_associated THEN 'Sim' ELSE 'Não' END AS cma_label,\n CASE WHEN e.is_dont_go = 1 THEN 'Sim' ELSE 'Não' END AS dontgo_label,\n 1 AS event_count\nFROM selected s JOIN equipment_event_history e ON e.tag=s.tag\n AND e.event_time >= timestampadd(HOUR,-4,s.prediction_timestamp)\n AND e.event_time < s.prediction_timestamp\nORDER BY e.event_time DESC,e.evento_telemetria_id\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "equipment_tag",
+          "displayName": "Equipamento",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "CA65926"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "keyword": "assessment_choice",
+          "displayName": "Avaliação",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "Mais recente"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "equipment_time_options",
+      "displayName": "Horários disponíveis",
+      "queryLines": [
+        "SELECT h.tag,h.tipo_equipamento,\n date_format(h.prediction_timestamp,'dd/MM/yyyy HH:mm') AS assessment_choice\nFROM fleet_exploration_history h WHERE h.tag=:equipment_tag\nUNION ALL\nSELECT c.tag,c.tipo_equipamento,'Mais recente' AS assessment_choice\nFROM fleet_current c WHERE c.tag=:equipment_tag\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "equipment_tag",
+          "displayName": "Equipamento",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "CA65926"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "equipment_options",
+      "displayName": "Equipamentos disponíveis",
+      "queryLines": [
+        "SELECT tag, tipo_equipamento FROM fleet_current ORDER BY tag\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "acompanhamento",
+      "displayName": "Acompanhamento",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "overview-title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Prioridades de investigação\n",
+                "Sinais de risco e registros para análise da equipe"
+              ]
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              },
+              "widgetBorderColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 7,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "overview-clock",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "clock",
+                  "fields": [
+                    {
+                      "name": "reference_label",
+                      "expression": "`reference_label`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "reference_label",
+                    "displayName": "Dados até"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Posição dos dados"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 0,
+            "width": 5,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "overview-fleet",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "overview",
+                  "fields": [
+                    {
+                      "name": "equipment_count",
+                      "expression": "SUM(`equipment_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Equipamentos na frota"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "equipment_count",
+                  "displayName": "Equipamentos na frota",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "overview-new",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "overview",
+                  "fields": [
+                    {
+                      "name": "investigation_count",
+                      "expression": "SUM(`investigation_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Sinais para investigar"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "investigation_count",
+                  "displayName": "Sinais para investigar",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#293242",
+                "dark": "#293242"
+              },
+              "widgetBorderColor": {
+                "light": "#293242",
+                "dark": "#293242"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "overview-occurrences",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "overview",
+                  "fields": [
+                    {
+                      "name": "occurrence_count",
+                      "expression": "SUM(`occurrence_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Com ocorrência registrada"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "occurrence_count",
+                  "displayName": "Com ocorrência registrada",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "overview-gaps",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "overview",
+                  "fields": [
+                    {
+                      "name": "insufficient_count",
+                      "expression": "SUM(`insufficient_count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Dados a verificar"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "insufficient_count",
+                  "displayName": "Dados a verificar",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "investigation-equipment",
+            "queries": [
+              {
+                "name": "priorities_tag",
+                "query": {
+                  "datasetName": "priorities",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Equipamento a conferir"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "tag",
+                    "queryName": "priorities_tag"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "priorities",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "priorities",
+                  "fields": [
+                    {
+                      "name": "investigation_order",
+                      "expression": "`investigation_order`"
+                    },
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    },
+                    {
+                      "name": "investigation_reason",
+                      "expression": "`investigation_reason`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "orders": [
+                    {
+                      "expression": "`investigation_order`",
+                      "direction": "ASC"
+                    },
+                    {
+                      "expression": "`tag`",
+                      "direction": "ASC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "investigation_order",
+                    "displayName": "Ordem de análise"
+                  },
+                  {
+                    "fieldName": "tag",
+                    "displayName": "Equipamento"
+                  },
+                  {
+                    "fieldName": "investigation_reason",
+                    "displayName": "Por que está na lista"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Por onde começar",
+                "showDescription": true,
+                "description": "Use o filtro de equipamento para focar a fila e os registros abaixo."
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 9,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "investigation-evidence",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "priorities",
+                  "fields": [
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    },
+                    {
+                      "name": "evidence_alarm",
+                      "expression": "`evidence_alarm`"
+                    },
+                    {
+                      "name": "evidence_records_label",
+                      "expression": "`evidence_records_label`"
+                    },
+                    {
+                      "name": "evidence_time_label",
+                      "expression": "`evidence_time_label`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "orders": [
+                    {
+                      "expression": "`investigation_order`",
+                      "direction": "ASC"
+                    },
+                    {
+                      "expression": "`tag`",
+                      "direction": "ASC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "tag",
+                    "displayName": "Equipamento"
+                  },
+                  {
+                    "fieldName": "evidence_alarm",
+                    "displayName": "Registro na telemetria"
+                  },
+                  {
+                    "fieldName": "evidence_records_label",
+                    "displayName": "Quantidade"
+                  },
+                  {
+                    "fieldName": "evidence_time_label",
+                    "displayName": "Último registro"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Registros para conferir · últimas 4h",
+                "showDescription": true,
+                "description": "Use estes registros como ponto de partida. Para consultar a evolução, escolha o equipamento na aba Equipamento."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "recorded-occurrences",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "occurrences",
+                  "fields": [
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    },
+                    {
+                      "name": "evidence_alarm",
+                      "expression": "`evidence_alarm`"
+                    },
+                    {
+                      "name": "evidence_time_label",
+                      "expression": "`evidence_time_label`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "tag",
+                    "displayName": "Equipamento"
+                  },
+                  {
+                    "fieldName": "evidence_alarm",
+                    "displayName": "Registro"
+                  },
+                  {
+                    "fieldName": "evidence_time_label",
+                    "displayName": "Horário"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ocorrências já registradas · últimas 4h",
+                "showDescription": true,
+                "description": "Registros classificados como Don’t Go na origem. Confira o atendimento com a equipe."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 7,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "missing-data",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_gaps",
+                  "fields": [
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    },
+                    {
+                      "name": "investigation_reason",
+                      "expression": "`investigation_reason`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "tag",
+                    "displayName": "Equipamento"
+                  },
+                  {
+                    "fieldName": "investigation_reason",
+                    "displayName": "O que verificar"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Dados a verificar",
+                "showDescription": true,
+                "description": "Verifique a disponibilidade dos dados antes de avaliar estes equipamentos."
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 11,
+            "width": 5,
+            "height": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "equipamento",
+      "displayName": "Equipamento",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "equipment-selector",
+            "queries": [
+              {
+                "name": "equipment_current_equipment_tag",
+                "query": {
+                  "datasetName": "equipment_current",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "equipment_tag",
+                      "keyword": "equipment_tag"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_history_equipment_tag",
+                "query": {
+                  "datasetName": "equipment_history",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "equipment_tag",
+                      "keyword": "equipment_tag"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_context_equipment_tag",
+                "query": {
+                  "datasetName": "equipment_context",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "equipment_tag",
+                      "keyword": "equipment_tag"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_events_equipment_tag",
+                "query": {
+                  "datasetName": "equipment_events",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "equipment_tag",
+                      "keyword": "equipment_tag"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_time_options_equipment_tag",
+                "query": {
+                  "datasetName": "equipment_time_options",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "equipment_tag",
+                      "keyword": "equipment_tag"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_options_tag",
+                "query": {
+                  "datasetName": "equipment_options",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Equipamento"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "equipment_tag",
+                    "queryName": "equipment_current_equipment_tag"
+                  },
+                  {
+                    "parameterName": "equipment_tag",
+                    "queryName": "equipment_history_equipment_tag"
+                  },
+                  {
+                    "parameterName": "equipment_tag",
+                    "queryName": "equipment_context_equipment_tag"
+                  },
+                  {
+                    "parameterName": "equipment_tag",
+                    "queryName": "equipment_events_equipment_tag"
+                  },
+                  {
+                    "parameterName": "equipment_tag",
+                    "queryName": "equipment_time_options_equipment_tag"
+                  },
+                  {
+                    "fieldName": "tag",
+                    "queryName": "equipment_options_tag"
+                  }
+                ]
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "CA65926"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "assessment-selector",
+            "queries": [
+              {
+                "name": "equipment_current_assessment_choice",
+                "query": {
+                  "datasetName": "equipment_current",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "assessment_choice",
+                      "keyword": "assessment_choice"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_history_assessment_choice",
+                "query": {
+                  "datasetName": "equipment_history",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "assessment_choice",
+                      "keyword": "assessment_choice"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_context_assessment_choice",
+                "query": {
+                  "datasetName": "equipment_context",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "assessment_choice",
+                      "keyword": "assessment_choice"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_events_assessment_choice",
+                "query": {
+                  "datasetName": "equipment_events",
+                  "disaggregated": false,
+                  "parameters": [
+                    {
+                      "name": "assessment_choice",
+                      "keyword": "assessment_choice"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_time_options_assessment_choice",
+                "query": {
+                  "datasetName": "equipment_time_options",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "assessment_choice",
+                      "expression": "`assessment_choice`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Avaliação"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "assessment_choice",
+                    "queryName": "equipment_current_assessment_choice"
+                  },
+                  {
+                    "parameterName": "assessment_choice",
+                    "queryName": "equipment_history_assessment_choice"
+                  },
+                  {
+                    "parameterName": "assessment_choice",
+                    "queryName": "equipment_context_assessment_choice"
+                  },
+                  {
+                    "parameterName": "assessment_choice",
+                    "queryName": "equipment_events_assessment_choice"
+                  },
+                  {
+                    "fieldName": "assessment_choice",
+                    "queryName": "equipment_time_options_assessment_choice"
+                  }
+                ]
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "Mais recente"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-clock",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "equipment_current",
+                  "fields": [
+                    {
+                      "name": "evaluation_label",
+                      "expression": "`evaluation_label`"
+                    },
+                    {
+                      "name": "records_period",
+                      "expression": "`records_period`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "evaluation_label",
+                    "displayName": "Avaliação selecionada"
+                  },
+                  {
+                    "fieldName": "records_period",
+                    "displayName": "Período dos registros"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Horário em investigação"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-assessment",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "equipment_current",
+                  "fields": [
+                    {
+                      "name": "decision_label",
+                      "expression": "`decision_label`"
+                    },
+                    {
+                      "name": "decision_reason",
+                      "expression": "`decision_reason`"
+                    },
+                    {
+                      "name": "next_step",
+                      "expression": "`next_step`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "decision_label",
+                    "displayName": "Resultado"
+                  },
+                  {
+                    "fieldName": "decision_reason",
+                    "displayName": "Por que teve esse resultado"
+                  },
+                  {
+                    "fieldName": "next_step",
+                    "displayName": "O que conferir"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Resultado desta avaliação"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-score",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "equipment_current",
+                  "fields": [
+                    {
+                      "name": "risk_score_display",
+                      "expression": "MAX(`risk_score_display`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Risco calculado neste horário · 0 a 1"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "risk_score_display",
+                  "displayName": "Risco calculado neste horário · 0 a 1"
+                }
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#293242",
+                "dark": "#293242"
+              },
+              "widgetBorderColor": {
+                "light": "#293242",
+                "dark": "#293242"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-context",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "equipment_context",
+                  "fields": [
+                    {
+                      "name": "indicador",
+                      "expression": "`indicador`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "`valor`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "orders": [
+                    {
+                      "expression": "`context_order`",
+                      "direction": "ASC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "indicador",
+                    "displayName": "Critério"
+                  },
+                  {
+                    "fieldName": "valor",
+                    "displayName": "Valor"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Critérios e aviso anterior"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 9,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-records-heading",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Registros anteriores à avaliação selecionada\n",
+                "Janela de quatro horas. Estes registros apoiam a investigação; não identificam a causa do risco calculado."
+              ]
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              },
+              "widgetBorderColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-alarms",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "equipment_events",
+                  "fields": [
+                    {
+                      "name": "alarm_code",
+                      "expression": "`alarm_code`"
+                    },
+                    {
+                      "name": "alarm_label",
+                      "expression": "`alarm_label`"
+                    },
+                    {
+                      "name": "severity_label",
+                      "expression": "`severity_label`"
+                    },
+                    {
+                      "name": "event_count",
+                      "expression": "SUM(`event_count`)"
+                    },
+                    {
+                      "name": "last_event_label",
+                      "expression": "MAX(`last_event_label`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "expression": "SUM(`event_count`)",
+                      "direction": "DESC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "alarm_code",
+                    "displayName": "Código"
+                  },
+                  {
+                    "fieldName": "alarm_label",
+                    "displayName": "Registro"
+                  },
+                  {
+                    "fieldName": "severity_label",
+                    "displayName": "Criticidade"
+                  },
+                  {
+                    "fieldName": "event_count",
+                    "displayName": "Quantidade"
+                  },
+                  {
+                    "fieldName": "last_event_label",
+                    "displayName": "Último registro"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Tipos de registro no período",
+                "showDescription": true,
+                "description": "Selecione um tipo para ver seus registros na tabela abaixo."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-events",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "equipment_events",
+                  "fields": [
+                    {
+                      "name": "event_label",
+                      "expression": "`event_label`"
+                    },
+                    {
+                      "name": "alarm_code",
+                      "expression": "`alarm_code`"
+                    },
+                    {
+                      "name": "alarm_label",
+                      "expression": "`alarm_label`"
+                    },
+                    {
+                      "name": "severity_label",
+                      "expression": "`severity_label`"
+                    },
+                    {
+                      "name": "cma_label",
+                      "expression": "`cma_label`"
+                    },
+                    {
+                      "name": "dontgo_label",
+                      "expression": "`dontgo_label`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "orders": [
+                    {
+                      "expression": "`event_time`",
+                      "direction": "DESC"
+                    },
+                    {
+                      "expression": "`evento_telemetria_id`",
+                      "direction": "DESC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "event_label",
+                    "displayName": "Horário"
+                  },
+                  {
+                    "fieldName": "alarm_code",
+                    "displayName": "Código"
+                  },
+                  {
+                    "fieldName": "alarm_label",
+                    "displayName": "Registro"
+                  },
+                  {
+                    "fieldName": "severity_label",
+                    "displayName": "Criticidade"
+                  },
+                  {
+                    "fieldName": "cma_label",
+                    "displayName": "Associado ao CMA"
+                  },
+                  {
+                    "fieldName": "dontgo_label",
+                    "displayName": "Don't Go"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Registros individuais do período"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-history-heading",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Evolução até a avaliação escolhida\n",
+                "A curva acompanha os sete dias anteriores ao horário selecionado. Para investigar outro instante, use Avaliação no topo."
+              ]
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              },
+              "widgetBorderColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 19,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "equipment-trajectory",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "equipment_history",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "chart_time",
+                      "expression": "`chart_time`"
+                    },
+                    {
+                      "name": "chart_reference",
+                      "expression": "`chart_reference`"
+                    },
+                    {
+                      "name": "hour_label",
+                      "expression": "`hour_label`"
+                    },
+                    {
+                      "name": "risk_score",
+                      "expression": "`risk_score`"
+                    },
+                    {
+                      "name": "risk_score_display",
+                      "expression": "`risk_score_display`"
+                    },
+                    {
+                      "name": "threshold_line",
+                      "expression": "`threshold_line`"
+                    },
+                    {
+                      "name": "score_segment",
+                      "expression": "`score_segment`"
+                    },
+                    {
+                      "name": "operational_status_label",
+                      "expression": "`operational_status_label`"
+                    },
+                    {
+                      "name": "is_emitted_alert",
+                      "expression": "`is_emitted_alert`"
+                    },
+                    {
+                      "name": "band_start",
+                      "expression": "`band_start`"
+                    },
+                    {
+                      "name": "band_end",
+                      "expression": "`band_end`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "custom-vega-viz",
+              "frame": {
+                "showTitle": true,
+                "title": "Risco e avisos · até a avaliação escolhida",
+                "showDescription": true,
+                "description": "Azul: risco calculado · Amarelo: limite de seleção · Rosa: avisos emitidos · Linha branca: avaliação escolhida · Cinza: sem avaliação"
+              },
+              "jsonSpec": {
+                "type": "vega-lite",
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v5.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"background\": \"transparent\", \"config\": {\"font\": \"Arial\", \"view\": {\"stroke\": null}, \"axis\": {\"labelColor\": \"#C4CAD2\", \"titleColor\": \"#C4CAD2\", \"gridColor\": \"#383E48\", \"domain\": false, \"tickColor\": \"#383E48\", \"labelFontSize\": 12, \"titleFontSize\": 12}}, \"layer\": [{\"transform\": [{\"filter\": \"datum.chart_time == datum.chart_reference\"}], \"mark\": {\"type\": \"rule\", \"color\": \"#F1F3F5\", \"strokeDash\": [3, 3]}, \"encoding\": {\"x\": {\"field\": \"chart_time\", \"type\": \"temporal\", \"axis\": {\"title\": null, \"format\": \"%d/%m %Hh\", \"labelAngle\": 0, \"tickCount\": 6, \"grid\": false}, \"scale\": {\"type\": \"utc\"}}, \"tooltip\": [{\"field\": \"hour_label\", \"type\": \"nominal\", \"title\": \"Hor\\u00e1rio\"}, {\"field\": \"risk_score_display\", \"type\": \"nominal\", \"title\": \"Score\"}, {\"field\": \"operational_status_label\", \"type\": \"nominal\", \"title\": \"Situa\\u00e7\\u00e3o\"}]}}, {\"transform\": [{\"filter\": \"!isValid(datum.risk_score)\"}], \"mark\": {\"type\": \"rect\", \"color\": \"#ADB5C2\", \"opacity\": 0.1}, \"encoding\": {\"x\": {\"field\": \"band_start\", \"type\": \"temporal\", \"axis\": {\"title\": null, \"format\": \"%d/%m %Hh\", \"labelAngle\": 0, \"tickCount\": 6, \"grid\": false}, \"scale\": {\"type\": \"utc\"}}, \"x2\": {\"field\": \"band_end\"}, \"tooltip\": [{\"field\": \"hour_label\", \"type\": \"nominal\", \"title\": \"Hor\\u00e1rio\"}, {\"field\": \"risk_score_display\", \"type\": \"nominal\", \"title\": \"Score\"}, {\"field\": \"operational_status_label\", \"type\": \"nominal\", \"title\": \"Situa\\u00e7\\u00e3o\"}]}}, {\"mark\": {\"type\": \"line\", \"color\": \"#ECB11F\", \"strokeDash\": [6, 4], \"strokeWidth\": 1.5}, \"encoding\": {\"x\": {\"field\": \"chart_time\", \"type\": \"temporal\", \"axis\": {\"title\": null, \"format\": \"%d/%m %Hh\", \"labelAngle\": 0, \"tickCount\": 6, \"grid\": false}, \"scale\": {\"type\": \"utc\"}}, \"y\": {\"field\": \"threshold_line\", \"type\": \"quantitative\", \"axis\": {\"title\": \"Score \\u00b7 0 a 1\", \"format\": \".2f\", \"tickCount\": 4}, \"scale\": {\"zero\": true}}}}, {\"transform\": [{\"filter\": \"isValid(datum.risk_score)\"}], \"mark\": {\"type\": \"line\", \"color\": \"#3CB5E5\", \"strokeWidth\": 2.5}, \"encoding\": {\"x\": {\"field\": \"chart_time\", \"type\": \"temporal\", \"axis\": {\"title\": null, \"format\": \"%d/%m %Hh\", \"labelAngle\": 0, \"tickCount\": 6, \"grid\": false}, \"scale\": {\"type\": \"utc\"}}, \"y\": {\"field\": \"risk_score\", \"type\": \"quantitative\", \"axis\": {\"title\": \"Score \\u00b7 0 a 1\", \"format\": \".2f\", \"tickCount\": 4}, \"scale\": {\"zero\": true}}, \"detail\": {\"field\": \"score_segment\", \"type\": \"nominal\"}}}, {\"transform\": [{\"filter\": \"isValid(datum.risk_score)\"}], \"mark\": {\"type\": \"point\", \"filled\": true, \"color\": \"#3CB5E5\", \"size\": 38, \"opacity\": 1}, \"encoding\": {\"x\": {\"field\": \"chart_time\", \"type\": \"temporal\", \"axis\": {\"title\": null, \"format\": \"%d/%m %Hh\", \"labelAngle\": 0, \"tickCount\": 6, \"grid\": false}, \"scale\": {\"type\": \"utc\"}}, \"y\": {\"field\": \"risk_score\", \"type\": \"quantitative\", \"axis\": {\"title\": \"Score \\u00b7 0 a 1\", \"format\": \".2f\", \"tickCount\": 4}, \"scale\": {\"zero\": true}}, \"tooltip\": [{\"field\": \"hour_label\", \"type\": \"nominal\", \"title\": \"Hor\\u00e1rio\"}, {\"field\": \"risk_score_display\", \"type\": \"nominal\", \"title\": \"Score\"}, {\"field\": \"operational_status_label\", \"type\": \"nominal\", \"title\": \"Situa\\u00e7\\u00e3o\"}]}}, {\"transform\": [{\"filter\": \"datum.is_emitted_alert && isValid(datum.risk_score)\"}], \"mark\": {\"type\": \"point\", \"shape\": \"diamond\", \"filled\": true, \"color\": \"#F0789C\", \"size\": 130, \"opacity\": 1}, \"encoding\": {\"x\": {\"field\": \"chart_time\", \"type\": \"temporal\", \"axis\": {\"title\": null, \"format\": \"%d/%m %Hh\", \"labelAngle\": 0, \"tickCount\": 6, \"grid\": false}, \"scale\": {\"type\": \"utc\"}}, \"y\": {\"field\": \"risk_score\", \"type\": \"quantitative\", \"axis\": {\"title\": \"Score \\u00b7 0 a 1\", \"format\": \".2f\", \"tickCount\": 4}, \"scale\": {\"zero\": true}}, \"tooltip\": [{\"field\": \"hour_label\", \"type\": \"nominal\", \"title\": \"Hor\\u00e1rio\"}, {\"field\": \"risk_score_display\", \"type\": \"nominal\", \"title\": \"Score\"}, {\"field\": \"operational_status_label\", \"type\": \"nominal\", \"title\": \"Situa\\u00e7\\u00e3o\"}]}}, {\"transform\": [{\"filter\": \"datum.chart_time == datum.chart_reference && isValid(datum.risk_score)\"}], \"mark\": {\"type\": \"point\", \"filled\": false, \"stroke\": \"#F1F3F5\", \"strokeWidth\": 2, \"size\": 280}, \"encoding\": {\"x\": {\"field\": \"chart_time\", \"type\": \"temporal\", \"axis\": {\"title\": null, \"format\": \"%d/%m %Hh\", \"labelAngle\": 0, \"tickCount\": 6, \"grid\": false}, \"scale\": {\"type\": \"utc\"}}, \"y\": {\"field\": \"risk_score\", \"type\": \"quantitative\", \"axis\": {\"title\": \"Score \\u00b7 0 a 1\", \"format\": \".2f\", \"tickCount\": 4}, \"scale\": {\"zero\": true}}, \"tooltip\": [{\"field\": \"hour_label\", \"type\": \"nominal\", \"title\": \"Hor\\u00e1rio\"}, {\"field\": \"risk_score_display\", \"type\": \"nominal\", \"title\": \"Score\"}, {\"field\": \"operational_status_label\", \"type\": \"nominal\", \"title\": \"Situa\\u00e7\\u00e3o\"}]}}]}"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "chart_time"
+                  },
+                  {
+                    "fieldName": "chart_reference"
+                  },
+                  {
+                    "fieldName": "hour_label"
+                  },
+                  {
+                    "fieldName": "risk_score"
+                  },
+                  {
+                    "fieldName": "risk_score_display"
+                  },
+                  {
+                    "fieldName": "threshold_line"
+                  },
+                  {
+                    "fieldName": "score_segment"
+                  },
+                  {
+                    "fieldName": "operational_status_label"
+                  },
+                  {
+                    "fieldName": "is_emitted_alert"
+                  },
+                  {
+                    "fieldName": "band_start"
+                  },
+                  {
+                    "fieldName": "band_end"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "historico",
+      "displayName": "Histórico",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "history-title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Histórico de avisos e ocorrências"
+              ]
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              },
+              "widgetBorderColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 7,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "history-subtitle",
+            "multilineTextboxSpec": {
+              "lines": [
+                "Compare os avisos do sistema com os registros de Don’t Go dos equipamentos."
+              ]
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              },
+              "widgetBorderColor": {
+                "light": "#14161B",
+                "dark": "#14161B"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 7,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "history-clock",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "clock",
+                  "fields": [
+                    {
+                      "name": "reference_label",
+                      "expression": "`reference_label`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "reference_label",
+                    "displayName": "Dados até"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Dados disponíveis até"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 0,
+            "width": 5,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "history-period",
+            "queries": [
+              {
+                "name": "history_history_date",
+                "query": {
+                  "datasetName": "history",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "history_date",
+                      "expression": "`history_date`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "frame": {
+                "showTitle": true,
+                "title": "Período"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "history_date",
+                    "queryName": "history_history_date"
+                  }
+                ]
+              },
+              "selection": {
+                "defaultSelection": {
+                  "range": {
+                    "dataType": "DATE",
+                    "min": {
+                      "value": "2025-06-08"
+                    },
+                    "max": {
+                      "value": "2025-06-15"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "history-tags",
+            "queries": [
+              {
+                "name": "history_tag",
+                "query": {
+                  "datasetName": "history",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Equipamentos"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "tag",
+                    "queryName": "history_tag"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "history-emissions",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "history",
+                  "fields": [
+                    {
+                      "name": "alert_record_id",
+                      "expression": "COUNT(`alert_record_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Avisos do sistema"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "alert_record_id",
+                  "displayName": "Avisos do sistema",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#293242",
+                "dark": "#293242"
+              },
+              "widgetBorderColor": {
+                "light": "#293242",
+                "dark": "#293242"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "history-equipment",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "history",
+                  "fields": [
+                    {
+                      "name": "emitting_tag",
+                      "expression": "COUNT(DISTINCT `emitting_tag`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Equipamentos com aviso"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "emitting_tag",
+                  "displayName": "Equipamentos com aviso",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "history-dontgo",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "history",
+                  "fields": [
+                    {
+                      "name": "dontgo_record_id",
+                      "expression": "COUNT(`dontgo_record_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Registros de Don’t Go"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "dontgo_record_id",
+                  "displayName": "Registros de Don’t Go",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "history-dontgo-equipment",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "history",
+                  "fields": [
+                    {
+                      "name": "dontgo_tag",
+                      "expression": "COUNT(DISTINCT `dontgo_tag`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "frame": {
+                "showTitle": true,
+                "title": "Equipamentos com Don’t Go"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "dontgo_tag",
+                  "displayName": "Equipamentos com Don’t Go",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "history-daily",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "history",
+                  "fields": [
+                    {
+                      "name": "history_date",
+                      "expression": "`history_date`"
+                    },
+                    {
+                      "name": "emitting_tag",
+                      "expression": "COUNT(DISTINCT `emitting_tag`)"
+                    },
+                    {
+                      "name": "dontgo_tag",
+                      "expression": "COUNT(DISTINCT `dontgo_tag`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "history_date",
+                  "displayName": "Dia",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "emitting_tag",
+                      "displayName": "Com aviso do sistema"
+                    },
+                    {
+                      "fieldName": "dontgo_tag",
+                      "displayName": "Com Don’t Go"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative",
+                    "domainMin": 0
+                  },
+                  "axis": {
+                    "hideTitle": true
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Equipamentos com aviso ou Don’t Go por dia",
+                "showDescription": true,
+                "description": "Cada equipamento conta uma vez por dia em cada grupo. O mesmo equipamento pode aparecer nos dois grupos."
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "format": {
+                "timeFormat": {
+                  "formatType": "moment",
+                  "format": "DD/MM"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "history-recurrence",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "history",
+                  "fields": [
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    },
+                    {
+                      "name": "alert_count",
+                      "expression": "SUM(`alert_count`)"
+                    },
+                    {
+                      "name": "dontgo_count",
+                      "expression": "SUM(`dontgo_count`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "filters": [
+                    {
+                      "expression": "`visible_record` = 1"
+                    }
+                  ],
+                  "orders": [
+                    {
+                      "expression": "SUM(`alert_count`)",
+                      "direction": "DESC"
+                    },
+                    {
+                      "expression": "SUM(`dontgo_count`)",
+                      "direction": "DESC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "tag",
+                    "displayName": "Equipamento"
+                  },
+                  {
+                    "fieldName": "alert_count",
+                    "displayName": "Avisos do sistema"
+                  },
+                  {
+                    "fieldName": "dontgo_count",
+                    "displayName": "Registros de Don’t Go"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Comparar equipamentos",
+                "showDescription": true,
+                "description": "Selecione um equipamento para conferir a sequência abaixo."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "history-alerts",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "history",
+                  "fields": [
+                    {
+                      "name": "record_time_label",
+                      "expression": "`record_time_label`"
+                    },
+                    {
+                      "name": "tag",
+                      "expression": "`tag`"
+                    },
+                    {
+                      "name": "record_type",
+                      "expression": "`record_type`"
+                    },
+                    {
+                      "name": "record_detail",
+                      "expression": "`record_detail`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`visible_record` = 1"
+                    }
+                  ],
+                  "orders": [
+                    {
+                      "expression": "`record_time`",
+                      "direction": "DESC"
+                    },
+                    {
+                      "expression": "`tag`",
+                      "direction": "ASC"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "record_time_label",
+                    "displayName": "Horário"
+                  },
+                  {
+                    "fieldName": "tag",
+                    "displayName": "Equipamento"
+                  },
+                  {
+                    "fieldName": "record_type",
+                    "displayName": "Tipo",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operator": "==",
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Aviso do sistema"
+                            }
+                          },
+                          "fontColor": {
+                            "hex": "#3CB5E5"
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operator": "==",
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Don’t Go registrado"
+                            }
+                          },
+                          "fontColor": {
+                            "hex": "#ECB11F"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "fieldName": "record_detail",
+                    "displayName": "Descrição"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Sequência de avisos e registros",
+                "showDescription": true,
+                "description": "Horários mais recentes primeiro. Avisos do sistema e registros da telemetria aparecem separados por tipo."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "filters",
+      "displayName": "Filtros",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "fleet-type",
+            "queries": [
+              {
+                "name": "overview_tipo_equipamento",
+                "query": {
+                  "datasetName": "overview",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_options_tipo_equipamento",
+                "query": {
+                  "datasetName": "equipment_options",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "priorities_tipo_equipamento",
+                "query": {
+                  "datasetName": "priorities",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "occurrences_tipo_equipamento",
+                "query": {
+                  "datasetName": "occurrences",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "data_gaps_tipo_equipamento",
+                "query": {
+                  "datasetName": "data_gaps",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "history_tipo_equipamento",
+                "query": {
+                  "datasetName": "history",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "alerts_tipo_equipamento",
+                "query": {
+                  "datasetName": "alerts",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_current_tipo_equipamento",
+                "query": {
+                  "datasetName": "equipment_current",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_history_tipo_equipamento",
+                "query": {
+                  "datasetName": "equipment_history",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_context_tipo_equipamento",
+                "query": {
+                  "datasetName": "equipment_context",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_events_tipo_equipamento",
+                "query": {
+                  "datasetName": "equipment_events",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "equipment_time_options_tipo_equipamento",
+                "query": {
+                  "datasetName": "equipment_time_options",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "tipo_equipamento",
+                      "expression": "`tipo_equipamento`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Tipo de equipamento"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "overview_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "equipment_options_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "priorities_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "occurrences_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "data_gaps_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "history_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "alerts_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "equipment_current_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "equipment_history_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "equipment_context_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "equipment_events_tipo_equipamento"
+                  },
+                  {
+                    "fieldName": "tipo_equipamento",
+                    "queryName": "equipment_time_options_tipo_equipamento"
+                  }
+                ]
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "Caminhao"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#14161B",
+        "dark": "#14161B"
+      },
+      "widgetBackgroundColor": {
+        "light": "#202329",
+        "dark": "#202329"
+      },
+      "widgetBorderColor": {
+        "light": "#202329",
+        "dark": "#202329"
+      },
+      "fontColor": {
+        "light": "#F1F3F5",
+        "dark": "#F1F3F5"
+      },
+      "selectionColor": {
+        "light": "#3CB5E5",
+        "dark": "#3CB5E5"
+      },
+      "visualizationColors": [
+        "#3CB5E5",
+        "#ECB11F",
+        "#45C4B0",
+        "#F0789C",
+        "#F2A363",
+        "#ADB5C2"
+      ],
+      "widgetHeaderAlignment": "LEFT",
+      "fontFamily": "Arial",
+      "widgetCornerRadius": 6
+    }
+  }
+}

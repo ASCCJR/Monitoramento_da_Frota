@@ -1,0 +1,152 @@
+version: 2
+
+sources:
+  - name: bronze_v2
+    description: >-
+      Cópia governada dos arquivos públicos fornecidos para o desafio Vale.
+      As tabelas são geradas pelo notebook Bronze da v2 e preservam a linhagem
+      por arquivo e SHA-256; nenhuma regra analítica é aplicada nesta camada.
+    database: "{{ target.catalog }}"
+    schema: "{{ env_var('FLEET_BRONZE_SCHEMA', 'fleet_bronze') }}"
+    config:
+      meta:
+        contract_version: "1.0.0"
+        layer: bronze
+        owner: antonio_sergio
+    tables:
+      - name: apontamentos_raw
+        description: >-
+          Ciclos operacionais de equipamentos. Cada registro representa o
+          intervalo de um apontamento identificado por Id, conforme recebido.
+        columns:
+          - name: Id
+            description: Identificador original do apontamento.
+          - name: Inicio
+            description: Início registrado do ciclo operacional, em TIMESTAMP_NTZ.
+          - name: Fim
+            description: Fim registrado do ciclo operacional, em TIMESTAMP_NTZ.
+          - name: Tag
+            description: Identificador do equipamento associado ao ciclo.
+          - name: Frota
+            description: Frota informada no arquivo de origem.
+          - name: Tipo
+            description: Tipo de equipamento informado no arquivo de origem.
+          - name: Classe
+            description: Classe operacional do ciclo.
+          - name: _source_path
+            description: Caminho lógico do arquivo original no manifesto Bronze.
+          - name: _source_sha256
+            description: SHA-256 do arquivo original ingerido.
+          - name: _source_period
+            description: Período opcional declarado no manifesto de entrada.
+          - name: _manifest_version
+            description: Versão do contrato do manifesto de entrada.
+          - name: _ingested_at_utc
+            description: Instante UTC em que o registro foi materializado na Bronze.
+
+      - name: telemetria_raw
+        description: >-
+          Eventos de telemetria dos equipamentos, incluindo alarmes e a marcação
+          original Is_Dont_Go. A disponibilidade temporal ainda não foi validada
+          contra um timestamp de chegada e usa Data_Evento apenas na Silver.
+        columns:
+          - name: Id_Eventos_Telemetria
+            description: Identificador original do evento de telemetria.
+          - name: Data_Evento
+            description: Instante registrado do evento, em TIMESTAMP_NTZ.
+          - name: Inicio_Turno
+            description: Início do turno no formato textual recebido.
+          - name: Fim_Turno
+            description: Fim do turno no formato textual recebido.
+          - name: Dia
+            description: Dia numérico informado na origem.
+          - name: Localidade
+            description: Localidade operacional informada na origem.
+          - name: TAG
+            description: Identificador do equipamento associado ao evento.
+          - name: Tag_Frota
+            description: Frota associada ao equipamento na origem.
+          - name: Tipo
+            description: Tipo do equipamento na origem.
+          - name: Nome_Operador_Anon
+            description: Nome anonimizado do operador; proibido como feature da v2.
+          - name: Matricula_Operador_Hash
+            description: Hash da matrícula do operador; proibido como feature da v2.
+          - name: Id_Alarme
+            description: Identificador numérico do alarme.
+          - name: Alarme
+            description: Nome descritivo do alarme.
+          - name: Id_Criticidade
+            description: Identificador da criticidade registrada.
+          - name: Criticidade
+            description: Descrição textual da criticidade recebida.
+          - name: Valor
+            description: Valor bruto textual, potencialmente com vírgula decimal ou literal NULL.
+          - name: Classe
+            description: Classe bruta textual, potencialmente com literal NULL.
+          - name: Is_Dont_Go
+            description: Indicador binário de ocorrência Don't Go fornecido na origem.
+          - name: _source_path
+            description: Caminho lógico do arquivo original no manifesto Bronze.
+          - name: _source_sha256
+            description: SHA-256 do arquivo original ingerido.
+          - name: _source_period
+            description: Período opcional declarado no manifesto de entrada.
+          - name: _manifest_version
+            description: Versão do contrato do manifesto de entrada.
+          - name: _ingested_at_utc
+            description: Instante UTC em que o registro foi materializado na Bronze.
+
+      - name: cma_regras_raw
+        description: >-
+          Regras de negócio CMA recebidas na versão mais recente. A associação
+          simples por EVENTO não equivale à execução completa de QUANTIDADE x TEMPO.
+        columns:
+          - name: TIPO
+            description: Tipo de equipamento ao qual a regra se aplica.
+          - name: EVENTO
+            description: Nome do evento ou alarme coberto pela regra.
+          - name: SITUACAO
+            description: Situação operacional descrita pela regra.
+          - name: QUANTIDADE
+            description: Quantidade de ocorrências prevista na regra.
+          - name: TEMPO
+            description: Janela temporal prevista na regra, na unidade documentada pela origem.
+          - name: NIVEL
+            description: Nível de severidade textual recebido.
+          - name: _source_path
+            description: Caminho lógico do arquivo original no manifesto Bronze.
+          - name: _source_sha256
+            description: SHA-256 do arquivo original ingerido.
+          - name: _source_period
+            description: Período opcional declarado no manifesto de entrada.
+          - name: _manifest_version
+            description: Versão do contrato do manifesto de entrada.
+          - name: _ingested_at_utc
+            description: Instante UTC em que o registro foi materializado na Bronze.
+
+      - name: dicionario_dados_raw
+        description: >-
+          Metadados do dicionário de dados entregue pela Vale. É uma fonte de
+          documentação e reconciliação, não uma tabela transacional da solução.
+        columns:
+          - name: nome_tabela
+            description: Nome da tabela descrita.
+          - name: nome_feature
+            description: Nome da coluna ou feature descrita.
+          - name: tipo_dados
+            description: Tipo de dado declarado no documento de origem.
+          - name: descricao
+            description: Descrição funcional fornecida.
+          - name: _source_sheet
+            description: Aba de origem no arquivo Excel.
+          - name: _source_path
+            description: Caminho lógico do arquivo original no manifesto Bronze.
+          - name: _source_sha256
+            description: SHA-256 do arquivo original ingerido.
+          - name: _source_period
+            description: Período opcional declarado no manifesto de entrada.
+          - name: _manifest_version
+            description: Versão do contrato do manifesto de entrada.
+          - name: _ingested_at_utc
+            description: Instante UTC em que o registro foi materializado na Bronze.

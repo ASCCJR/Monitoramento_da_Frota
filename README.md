@@ -3,6 +3,10 @@
 Dashboard e assistente de dados para equipes de manutenção priorizarem quais
 caminhões investigar, conferirem os registros e consultarem ocorrências anteriores.
 
+![Conceito de central de manutenção com a fila da frota na TV, a avaliação de um caminhão no iPad e uma consulta ao Genie no celular](assets/monitoramento-em-dispositivos.png)
+
+*Conceito de uso em uma central de manutenção, ilustrado a partir das telas da demonstração com dados históricos.*
+
 **1º lugar em Análise Avançada de Dados · Programa Desenvolver 2026 da Vale**
 
 Desenvolvi o trabalho premiado *Antecipação de Alertas Críticos em Frotas de
@@ -13,44 +17,91 @@ preparação da telemetria à lista de investigação, com dashboard AI/BI e Gen
 
 Às **10h de 15/06/2025**, no recorte histórico de 29 caminhões, a lista de
 **Acompanhamento** destacou dois para investigação. Ambos continuavam na lista
-sem novo aviso naquele horário. Na janela das quatro horas anteriores, havia
-sete registros de nível do líquido de arrefecimento no primeiro caminhão e
-quatro no segundo.
+sem novo aviso naquele horário. Nas quatro horas anteriores, havia sete
+registros de nível do líquido de arrefecimento no primeiro caminhão e quatro
+no segundo.
 
-![Painel de Acompanhamento às 10h de 15/06/2025 com 29 caminhões, dois sinais para investigar e os registros a conferir](assets/acompanhamento.png)
+A equipe pode começar pela fila, abrir a avaliação do caminhão em
+**Equipamento** e consultar avisos e ocorrências no **Histórico**. O Genie
+usa os mesmos dados para responder a perguntas como “Por qual caminhão devo
+começar e quais registros devo conferir?”
 
-A ordem vem da política de priorização. Os registros apontam o que conferir
-em **Equipamento**. Em **Histórico**, é possível ver se sinais semelhantes
-apareceram em outros dias. O Genie consulta as mesmas fontes e aceita uma
-pergunta como “Por qual caminhão devo começar e quais registros devo conferir?”
+<details>
+<summary>Ver as telas reais da demonstração</summary>
 
-[Veja a investigação por equipamento, o histórico e a resposta do Genie](docs/demonstracao.md).
+### Acompanhamento
 
-## Execute a política de priorização
+O resumo do recorte mostra 29 caminhões, dois sinais para investigar, um
+equipamento com ocorrência registrada e sete com dados a verificar.
 
-Com `uv` e Python 3.12, na raiz do repositório:
+![Painel de Acompanhamento às 10h de 15/06/2025, com a fila de investigação e os registros a conferir](assets/acompanhamento.png)
+
+### Equipamento
+
+No caminhão CA65926, o sinal continuava prioritário às 10h. O aviso das 09h
+ainda estava dentro do intervalo mínimo de quatro horas entre avisos. A tela
+mostra os registros das 06h até antes das 10h.
+
+![Avaliação do caminhão CA65926 às 10h, janela de registros e aviso anterior](assets/equipamento.png)
+
+### Histórico
+
+As barras contam caminhões distintos por dia com avisos do sistema e com
+registros de Don’t Go. Um caminhão pode aparecer nos dois grupos.
+
+![Histórico de 8 a 15 de junho com filtros e comparação diária de caminhões](assets/historico.png)
+
+### Genie
+
+O assistente retornou a mesma ordem, sete e quatro registros de nível do
+líquido de arrefecimento e nenhum novo aviso às 10h.
+
+![Consulta ao Genie e resposta com os dois caminhões na ordem da investigação](assets/genie.png)
+
+</details>
+
+## Avaliação em junho de 2025
+
+O teste retrospectivo cobre **17.203 observações de 31 equipamentos**. A
+reprodução refez o treino em um ambiente Databricks separado, selecionou
+LightGBM e fixou o limite em três candidatos por horário, ante cinco na
+referência histórica.
+
+| Medida | Referência histórica | Reprodução |
+|---|---:|---:|
+| Episódios elegíveis associados a aviso | 75 de 222 (33,8%) | 78 de 222 (35,1%) |
+| Avisos associados a episódio | 75 de 251 (29,9%) | 78 de 246 (31,7%) |
+| Antecedência mediana dos avisos associados | 93,9 min | 93,3 min |
+
+Na referência histórica, 75 de 220 episódios de caminhões foram associados
+a avisos (34,1%). As escavadeiras tiveram dois episódios elegíveis. As
+capturas mostram o recorte histórico, e a avaliação mede a priorização
+retrospectiva. [Arquitetura, metodologia e limites](docs/arquitetura-e-avaliacao.md)
+
+## Reproduza o projeto
+
+O repositório inclui os [nove arquivos de entrada](data/README.md), a ingestão
+PySpark, as transformações dbt, o treino com LightGBM e MLflow e o scoring com
+a política de avisos. Dashboard e Genie consultam as mesmas views de
+investigação. [Guia de reprodução](docs/reproducao.md)
+
+Em um computador novo, abra o clone em um assistente com acesso ao terminal.
+Peça que siga o guia de ponta a ponta usando o perfil Databricks que você
+escolher. A primeira autenticação da CLI pode pedir sua confirmação no navegador.
+
+### Execute a política localmente
+
+Com `uv` e Python 3.12, rode na raiz do repositório.
 
 ```bash
 uv sync --frozen
 uv run python -m examples.run_policy
-uv run pytest -q
 ```
 
 O [exemplo](examples/run_policy.py) usa pontuações sintéticas de três caminhões
 em dois horários. A [política](fleet_monitoring/policy.py) ordena os scores,
 aplica um limite de candidatos por horário e respeita um intervalo mínimo entre
 avisos para o mesmo equipamento. No segundo horário, um caminhão segue na lista
-mesmo sem receber novo aviso. Esse exemplo roda localmente com scores já fornecidos.
+mesmo sem receber novo aviso.
 
-## Avaliação histórica
-
-Em junho de 2025, a política congelada associou **75 de 222 episódios elegíveis
-à avaliação (33,8%)** a avisos anteriores. Foram emitidos 251 avisos, dos quais
-75 foram associados a episódios. Entre as correspondências, a antecedência
-mediana foi de 93,9 minutos. O recorte avalia priorização retrospectiva.
-
-A preparação usa somente a informação disponível no instante da avaliação.
-Veja [como a solução foi construída e avaliada](docs/arquitetura-e-avaliacao.md)
-para entender as fontes, as unidades de análise e os limites dos resultados.
-
-[Licença do código](LICENSE) · [Autoria e origem dos materiais](NOTICE.md)
+[Como contribuir](CONTRIBUTING.md) · [Licença do código](LICENSE) · [Autoria e origem dos materiais](NOTICE.md)

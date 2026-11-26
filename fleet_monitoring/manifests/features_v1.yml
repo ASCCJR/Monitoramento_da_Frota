@@ -1,0 +1,483 @@
+version: 1.0.0
+frozen_at: '2026-08-24'
+entity: equipment
+entity_key: tag
+timestamp_key: prediction_timestamp
+row_key: scoring_row_id
+target: y_episode
+feature_count: 46
+source_timezone: UNCONFIRMED
+availability_is_proxy: true
+prohibited_inputs:
+  - tag
+  - equipamento_id
+  - operador_anonimo
+  - matricula_operador_hash
+  - alarme
+  - alarme_id
+  - duracao_ciclo_min
+  - classe_operacional
+  - y_episode
+  - next_episode_id
+  - next_episode_start
+features:
+  - name: cutoff_hour
+    family: calendar
+    data_type: int
+    definition: Hour 0-23 derived from prediction_timestamp.
+    source: prediction_timestamp
+    event_time: prediction_timestamp
+    availability_rule: Deterministic at cutoff.
+    window: cutoff
+    null_rule: never null
+    model_use: primary
+  - name: day_of_week_iso
+    family: calendar
+    data_type: int
+    definition: ISO weekday 1 Monday through 7 Sunday.
+    source: prediction_timestamp
+    event_time: prediction_timestamp
+    availability_rule: Deterministic at cutoff.
+    window: cutoff
+    null_rule: never null
+    model_use: primary
+  - name: day_of_month
+    family: calendar
+    data_type: int
+    definition: Calendar day 1-31 at cutoff.
+    source: prediction_timestamp
+    event_time: prediction_timestamp
+    availability_rule: Deterministic at cutoff.
+    window: cutoff
+    null_rule: never null
+    model_use: primary
+  - name: is_night_window_proxy
+    family: calendar
+    data_type: tinyint
+    definition: One from 18:00 through 05:59; analytical proxy, not official shift.
+    source: prediction_timestamp
+    event_time: prediction_timestamp
+    availability_rule: Deterministic at cutoff.
+    window: cutoff
+    null_rule: never null
+    model_use: primary
+  - name: is_truck
+    family: equipment
+    data_type: tinyint
+    definition: One when tipo_equipamento equals Caminhao.
+    source: int_equipamentos.tipo_equipamento
+    event_time: static attribute
+    availability_rule: Reconciled one-to-one by Tag in source period.
+    window: static
+    null_rule: never null
+    model_use: primary
+  - name: is_fleet_793_d_2s
+    family: equipment
+    data_type: tinyint
+    definition: One for fleet 793-D 2S.
+    source: int_equipamentos.tag_frota
+    event_time: static attribute
+    availability_rule: Reconciled one-to-one by Tag in source period.
+    window: static
+    null_rule: never null
+    model_use: primary
+  - name: is_fleet_793_d_3s
+    family: equipment
+    data_type: tinyint
+    definition: One for fleet 793-D 3S.
+    source: int_equipamentos.tag_frota
+    event_time: static attribute
+    availability_rule: Reconciled one-to-one by Tag in source period.
+    window: static
+    null_rule: never null
+    model_use: primary
+  - name: is_fleet_793_d_4s
+    family: equipment
+    data_type: tinyint
+    definition: One for fleet 793-D 4S.
+    source: int_equipamentos.tag_frota
+    event_time: static attribute
+    availability_rule: Reconciled one-to-one by Tag in source period.
+    window: static
+    null_rule: never null
+    model_use: primary
+  - name: is_fleet_793_d_5s
+    family: equipment
+    data_type: tinyint
+    definition: One for fleet 793-D 5S.
+    source: int_equipamentos.tag_frota
+    event_time: static attribute
+    availability_rule: Reconciled one-to-one by Tag in source period.
+    window: static
+    null_rule: never null
+    model_use: primary
+  - name: is_fleet_letourneau_l_1850
+    family: equipment
+    data_type: tinyint
+    definition: One for fleet LeTourneau L 1850.
+    source: int_equipamentos.tag_frota
+    event_time: static attribute
+    availability_rule: Reconciled one-to-one by Tag in source period.
+    window: static
+    null_rule: never null
+    model_use: primary
+  - name: history_1h_is_complete
+    family: completeness
+    data_type: boolean
+    definition: Entire one-hour Tag history is observable before cutoff.
+    source: int_scoring_grade and global unavailability
+    event_time: prediction_timestamp
+    availability_rule: Uses only source coverage known at cutoff.
+    window: '[t-1h,t)'
+    null_rule: never null
+    model_use: primary
+  - name: history_4h_is_complete
+    family: completeness
+    data_type: boolean
+    definition: Entire four-hour Tag history is observable before cutoff.
+    source: int_scoring_grade and global unavailability
+    event_time: prediction_timestamp
+    availability_rule: Uses only source coverage known at cutoff.
+    window: '[t-4h,t)'
+    null_rule: never null
+    model_use: primary
+  - name: history_24h_is_complete
+    family: completeness
+    data_type: boolean
+    definition: Entire 24-hour Tag history is observable before cutoff.
+    source: int_scoring_grade and global unavailability
+    event_time: prediction_timestamp
+    availability_rule: Uses only source coverage known at cutoff.
+    window: '[t-24h,t)'
+    null_rule: never null
+    model_use: primary
+  - name: episode_history_7d_is_complete
+    family: completeness
+    data_type: boolean
+    definition: Entire seven-day episode history is observable before cutoff.
+    source: int_scoring_grade and global unavailability
+    event_time: prediction_timestamp
+    availability_rule: Uses only source coverage known at cutoff.
+    window: '[t-7d,t)'
+    null_rule: never null
+    model_use: primary
+  - name: episode_history_30d_is_complete
+    family: completeness
+    data_type: boolean
+    definition: Entire 30-day episode history is observable before cutoff.
+    source: int_scoring_grade and global unavailability
+    event_time: prediction_timestamp
+    availability_rule: Uses only source coverage known at cutoff.
+    window: '[t-30d,t)'
+    null_rule: never null
+    model_use: primary
+  - name: events_1h
+    family: activity
+    data_type: bigint
+    definition: Observed telemetry events for the same Tag in the last hour.
+    source: int_telemetria_features_hora_tag.event_count
+    event_time: stg_telemetria.event_time
+    availability_rule: max availability_time is at or before cutoff.
+    window: '[t-1h,t)'
+    null_rule: zero when no event observed; use completeness companion
+    model_use: primary
+  - name: events_4h
+    family: activity
+    data_type: bigint
+    definition: Observed telemetry events for the same Tag in the last four hours.
+    source: int_telemetria_features_hora_tag.event_count
+    event_time: stg_telemetria.event_time
+    availability_rule: max availability_time is at or before cutoff.
+    window: '[t-4h,t)'
+    null_rule: zero when no event observed; use completeness companion
+    model_use: primary
+  - name: events_24h
+    family: activity
+    data_type: bigint
+    definition: Observed telemetry events for the same Tag in the last 24 hours.
+    source: int_telemetria_features_hora_tag.event_count
+    event_time: stg_telemetria.event_time
+    availability_rule: max availability_time is at or before cutoff.
+    window: '[t-24h,t)'
+    null_rule: zero when no event observed; use completeness companion
+    model_use: primary
+  - name: critical_events_4h
+    family: criticality
+    data_type: bigint
+    definition: Critical events observed in the last four hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-4h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: critical_events_24h
+    family: criticality
+    data_type: bigint
+    definition: Critical events observed in the last 24 hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: noncritical_events_4h
+    family: criticality
+    data_type: bigint
+    definition: Non-critical events observed in the last four hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-4h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: noncritical_events_24h
+    family: criticality
+    data_type: bigint
+    definition: Non-critical events observed in the last 24 hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: informational_events_4h
+    family: criticality
+    data_type: bigint
+    definition: Informational events observed in the last four hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-4h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: informational_events_24h
+    family: criticality
+    data_type: bigint
+    definition: Informational events observed in the last 24 hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: other_events_4h
+    family: criticality
+    data_type: bigint
+    definition: Other-class events observed in the last four hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-4h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: other_events_24h
+    family: criticality
+    data_type: bigint
+    definition: Other-class events observed in the last 24 hours.
+    source: stg_telemetria.criticidade
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: cma_events_4h
+    family: cma_association
+    data_type: bigint
+    definition: Events whose normalized alarm name exists in static CMA catalog.
+    source: stg_telemetria joined to int_cma_evento_lookup
+    event_time: stg_telemetria.event_time
+    availability_rule: telemetry availability is at or before cutoff; catalog has no historical validity.
+    window: '[t-4h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: cma_events_24h
+    family: cma_association
+    data_type: bigint
+    definition: Catalog-associated events observed in the last 24 hours.
+    source: stg_telemetria joined to int_cma_evento_lookup
+    event_time: stg_telemetria.event_time
+    availability_rule: telemetry availability is at or before cutoff; catalog has no historical validity.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: cma_very_high_events_4h
+    family: cma_association
+    data_type: bigint
+    definition: Events associated with at least one CMA rule at Muito Alto level.
+    source: stg_telemetria joined to int_cma_evento_lookup
+    event_time: stg_telemetria.event_time
+    availability_rule: association only; rule engine is not executed.
+    window: '[t-4h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: cma_very_high_events_24h
+    family: cma_association
+    data_type: bigint
+    definition: Very-high CMA-associated events observed in the last 24 hours.
+    source: stg_telemetria joined to int_cma_evento_lookup
+    event_time: stg_telemetria.event_time
+    availability_rule: association only; rule engine is not executed.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: cma_high_events_4h
+    family: cma_association
+    data_type: bigint
+    definition: Events associated with at least one CMA rule at Alto level.
+    source: stg_telemetria joined to int_cma_evento_lookup
+    event_time: stg_telemetria.event_time
+    availability_rule: association only; rule engine is not executed.
+    window: '[t-4h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: cma_high_events_24h
+    family: cma_association
+    data_type: bigint
+    definition: High CMA-associated events observed in the last 24 hours.
+    source: stg_telemetria joined to int_cma_evento_lookup
+    event_time: stg_telemetria.event_time
+    availability_rule: association only; rule engine is not executed.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: dontgo_occurrences_24h
+    family: activity
+    data_type: bigint
+    definition: Original Don't Go occurrence rows observed in the last 24 hours.
+    source: stg_telemetria.is_dont_go
+    event_time: stg_telemetria.event_time
+    availability_rule: availability_time is at or before cutoff.
+    window: '[t-24h,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: critical_rate_4h
+    family: rate
+    data_type: double
+    definition: critical_events_4h divided by events_4h.
+    source: derived feature
+    event_time: inherited from numerator and denominator
+    availability_rule: inherited from four-hour aggregates.
+    window: '[t-4h,t)'
+    null_rule: null when events_4h is zero
+    model_use: primary
+  - name: critical_rate_24h
+    family: rate
+    data_type: double
+    definition: critical_events_24h divided by events_24h.
+    source: derived feature
+    event_time: inherited from numerator and denominator
+    availability_rule: inherited from 24-hour aggregates.
+    window: '[t-24h,t)'
+    null_rule: null when events_24h is zero
+    model_use: primary
+  - name: cma_rate_4h
+    family: rate
+    data_type: double
+    definition: cma_events_4h divided by events_4h.
+    source: derived feature
+    event_time: inherited from numerator and denominator
+    availability_rule: inherited from four-hour aggregates.
+    window: '[t-4h,t)'
+    null_rule: null when events_4h is zero
+    model_use: primary
+  - name: cma_rate_24h
+    family: rate
+    data_type: double
+    definition: cma_events_24h divided by events_24h.
+    source: derived feature
+    event_time: inherited from numerator and denominator
+    availability_rule: inherited from 24-hour aggregates.
+    window: '[t-24h,t)'
+    null_rule: null when events_24h is zero
+    model_use: primary
+  - name: events_per_hour_4h
+    family: rate
+    data_type: double
+    definition: events_4h divided by four.
+    source: derived feature
+    event_time: inherited from events_4h
+    availability_rule: inherited from four-hour aggregate.
+    window: '[t-4h,t)'
+    null_rule: never null
+    model_use: primary
+  - name: events_per_hour_24h
+    family: rate
+    data_type: double
+    definition: events_24h divided by 24.
+    source: derived feature
+    event_time: inherited from events_24h
+    availability_rule: inherited from 24-hour aggregate.
+    window: '[t-24h,t)'
+    null_rule: never null
+    model_use: primary
+  - name: activity_acceleration_4h_vs_24h
+    family: rate
+    data_type: double
+    definition: Four-hour hourly rate divided by 24-hour hourly rate.
+    source: derived feature
+    event_time: inherited from activity aggregates
+    availability_rule: inherited from four-hour and 24-hour aggregates.
+    window: '[t-24h,t)'
+    null_rule: null when 24-hour rate is zero
+    model_use: primary
+  - name: prior_episode_count
+    family: episode_history
+    data_type: bigint
+    definition: Observed primary episode starts strictly before cutoff since source start.
+    source: int_dontgo_episodios
+    event_time: episode_start_proxy
+    availability_rule: only observed starts with episode_start_proxy before cutoff.
+    window: source start through t open
+    null_rule: zero when none observed
+    model_use: primary
+  - name: episodes_7d
+    family: episode_history
+    data_type: bigint
+    definition: Observed primary episode starts in the prior seven days.
+    source: int_dontgo_episodios
+    event_time: episode_start_proxy
+    availability_rule: only observed starts strictly before cutoff.
+    window: '[t-7d,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: episodes_30d
+    family: episode_history
+    data_type: bigint
+    definition: Observed primary episode starts in the prior 30 days.
+    source: int_dontgo_episodios
+    event_time: episode_start_proxy
+    availability_rule: only observed starts strictly before cutoff.
+    window: '[t-30d,t)'
+    null_rule: zero observed; use completeness companion
+    model_use: primary
+  - name: hours_since_last_episode_start
+    family: episode_history
+    data_type: double
+    definition: Hours since the latest observed primary episode start before cutoff.
+    source: int_dontgo_episodios
+    event_time: episode_start_proxy
+    availability_rule: latest observed start strictly before cutoff.
+    window: source start through t open
+    null_rule: null when no prior observed episode; use has_prior_episode
+    model_use: primary
+  - name: has_prior_episode
+    family: episode_history
+    data_type: tinyint
+    definition: One when at least one observed primary episode exists before cutoff.
+    source: int_dontgo_episodios
+    event_time: episode_start_proxy
+    availability_rule: only starts strictly before cutoff.
+    window: source start through t open
+    null_rule: never null
+    model_use: primary
+  - name: episode_history_exposure_days
+    family: episode_history
+    data_type: double
+    definition: Days between first observable Tag history and cutoff.
+    source: int_scoring_grade
+    event_time: prediction_timestamp and tag_first_event_time
+    availability_rule: both timestamps are available at cutoff in retrospective study.
+    window: source start through t
+    null_rule: never null
+    model_use: primary

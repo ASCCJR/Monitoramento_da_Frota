@@ -1,0 +1,495 @@
+version: 2
+
+models:
+  - name: int_dontgo_ocorrencias
+    description: >-
+      Uma linha por evento de telemetria válido com is_dont_go = 1. Nenhuma
+      deduplicação física é aplicada e o ID original permanece a chave.
+    config:
+      meta:
+        grain: one telemetry row with is_dont_go equal to one
+    columns:
+      - name: ocorrencia_id
+        description: ID original do evento de telemetria positivo.
+        data_tests: [not_null, unique]
+      - name: event_time
+        description: Timestamp exato da ocorrência em TIMESTAMP_NTZ.
+      - name: availability_time
+        description: Proxy de disponibilidade herdada da telemetria.
+      - name: tag
+        description: Equipamento associado à ocorrência.
+      - name: tipo_equipamento
+        description: Tipo do equipamento.
+      - name: ocorrencia_sequence
+        description: Ordem determinística da ocorrência dentro do Tag.
+      - name: dataset_start_time
+        description: Primeiro timestamp observável em toda a telemetria.
+      - name: dataset_end_time
+        description: Último timestamp observável em toda a telemetria.
+
+  - name: int_dontgo_episodio_membros
+    description: >-
+      Associação determinística entre cada ocorrência e um episódio para cada
+      gap de sensibilidade. O cenário primário é sempre identificado por flag.
+    config:
+      meta:
+        grain: one occurrence per episode gap
+        primary_gap_hours: 4
+    columns:
+      - name: episodio_membro_id
+        description: SHA-256 determinístico de episódio + ocorrência.
+        data_tests: [not_null, unique]
+      - name: contract_version
+        description: Versão do contrato temporal usada na associação.
+      - name: episode_gap_hours
+        description: Gap que define um novo episódio nesta linha.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 4, 8]
+      - name: is_primary_gap
+        description: Verdadeiro somente para o cenário de quatro horas.
+      - name: episode_id
+        description: ID determinístico do episódio por contrato, gap, Tag e sequência.
+      - name: episode_sequence
+        description: Sequência do episódio dentro de Tag + gap.
+      - name: episode_anchor_time
+        description: Primeira ocorrência observada do grupo proxy.
+      - name: episode_is_left_censored
+        description: Indica que não existe histórico observável suficiente antes da âncora.
+      - name: is_observed_episode_start
+        description: Âncora cuja classificação de início não está censurada à esquerda.
+      - name: is_episode_anchor
+        description: Primeira ocorrência observada dentro do episódio derivado.
+      - name: ocorrencia_id
+        description: Ocorrência membro do episódio.
+      - name: event_time
+        description: Timestamp exato da ocorrência membro.
+      - name: previous_occurrence_time
+        description: Ocorrência anterior do mesmo Tag no mesmo cenário de gap.
+      - name: gap_from_previous_microseconds
+        description: Distância exata para a ocorrência anterior, em microssegundos.
+
+  - name: int_dontgo_episodios
+    description: >-
+      Uma linha por episódio proxy e gap. Episódios censurados preservam a
+      primeira ocorrência observada como proxy, sem alegar início físico.
+    config:
+      meta:
+        grain: one proxy episode per gap
+        primary_gap_hours: 4
+    columns:
+      - name: episode_id
+        description: Chave determinística do episódio.
+        data_tests: [not_null, unique]
+      - name: episode_gap_hours
+        description: Gap do cenário analítico.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 4, 8]
+      - name: is_primary_gap
+        description: Verdadeiro somente no cenário primário de quatro horas.
+      - name: episode_start_proxy
+        description: Primeira ocorrência observada; pode ser censurada à esquerda.
+      - name: episode_end
+        description: Última ocorrência observada do episódio.
+      - name: occurrence_count
+        description: Quantidade de ocorrências associadas ao episódio.
+      - name: episode_start_is_observed
+        description: >-
+          Falso quando a âncora pertence à borda esquerda do dataset ou quando
+          seu lookback cruza indisponibilidade global.
+      - name: episode_start_history_is_unavailable
+        description: >-
+          Verdadeiro quando o lookback exigido pelo gap cruza uma lacuna global
+          e impede afirmar que a âncora é realmente um novo início.
+
+  - name: int_telemetria_indisponibilidade_global
+    description: >-
+      Intervalos sem qualquer evento da frota por ao menos 900 segundos. As
+      extremidades são eventos observados e o interior é indisponível.
+    config:
+      meta:
+        grain: one fleetwide telemetry capture gap
+        threshold_seconds: 900
+    columns:
+      - name: unavailability_id
+        description: SHA-256 determinístico do contrato, limiar e extremidades.
+        data_tests: [not_null, unique]
+      - name: threshold_seconds
+        description: Limiar versionado usado na classificação.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [900]
+      - name: unavailable_start_exclusive
+        description: Último evento observado antes do gap; limite aberto.
+      - name: unavailable_end_exclusive
+        description: Primeiro evento observado depois do gap; limite aberto.
+      - name: gap_duration_seconds
+        description: Duração truncada em segundos entre os dois eventos.
+      - name: zero_full_5m_bin_count
+        description: Quantidade de bins completos de cinco minutos sem eventos.
+      - name: unavailability_reason
+        description: Gap global ou dia-calendário inteiramente ausente.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [GLOBAL_CAPTURE_GAP, MISSING_CALENDAR_DAY]
+      - name: invalidates_entire_4h_window
+        description: Verdadeiro quando o gap dura ao menos quatro horas.
+
+  - name: int_equipamentos
+    description: Uma linha por Tag com tipo, frota, localidade e cobertura temporal auditados.
+    config:
+      meta:
+        grain: one telemetry equipment tag
+    columns:
+      - name: equipamento_id
+        description: SHA-256 determinístico de contrato + Tag.
+        data_tests: [not_null, unique]
+      - name: tag
+        description: Chave de negócio do equipamento.
+        data_tests: [not_null, unique]
+      - name: tipo_equipamento
+        description: Único tipo observado para o Tag.
+      - name: tag_frota
+        description: Única frota observada para o Tag.
+      - name: localidade
+        description: Única localidade observada para o Tag.
+      - name: tag_first_event_time
+        description: Primeiro evento observado do equipamento.
+      - name: tag_last_event_time
+        description: Último evento observado do equipamento.
+
+  - name: int_telemetria_hora_tag
+    description: >-
+      Uma linha por Tag + hora com contagens determinísticas para atividade e
+      futuras features de lookback.
+    config:
+      meta:
+        grain: one equipment tag per event hour
+    columns:
+      - name: tag_hour_id
+        description: SHA-256 determinístico de contrato + Tag + hora.
+        data_tests: [not_null, unique]
+      - name: tag
+        description: Equipamento agregado.
+      - name: event_hour
+        description: Início da hora no relógio TIMESTAMP_NTZ da origem.
+      - name: event_count
+        description: Quantidade total de eventos na hora.
+      - name: dont_go_count
+        description: Quantidade de ocorrências positivas na hora.
+
+  - name: int_scoring_cutoffs
+    description: >-
+      Grade horária global com lookback e follow-up completos nas bordas do
+      dataset, alinhada ao início de cada hora.
+    config:
+      meta:
+        grain: one hourly prediction timestamp
+        frequency_hours: 1
+    columns:
+      - name: cutoff_id
+        description: SHA-256 determinístico de contrato + cutoff.
+        data_tests: [not_null, unique]
+      - name: prediction_timestamp
+        description: Instante lógico da decisão.
+        data_tests: [not_null, unique]
+      - name: has_complete_global_lookback
+        description: Verdadeiro quando quatro horas anteriores cabem no dataset.
+      - name: has_complete_global_followup
+        description: Verdadeiro quando quatro horas futuras cabem no dataset.
+
+  - name: int_scoring_grade
+    description: >-
+      Produto Tag × cutoff com atividade, washout, indisponibilidade e flags
+      separadas de elegibilidade online e de treinamento.
+    config:
+      meta:
+        grain: one equipment tag per hourly cutoff
+    columns:
+      - name: scoring_row_id
+        description: SHA-256 determinístico de contrato + Tag + cutoff.
+        data_tests: [not_null, unique]
+      - name: prediction_timestamp
+        description: Cutoff horário da linha.
+      - name: tag
+        description: Equipamento avaliado.
+      - name: active_event_count
+        description: Eventos em [t-4h, t).
+      - name: washout_occurrence_count
+        description: Ocorrências Don't Go em [t-4h, t].
+      - name: has_lookback_unavailability
+        description: Algum gap global intersecta [t-4h, t).
+      - name: has_followup_unavailability
+        description: Algum gap global intersecta (t, t+4h].
+      - name: is_scoring_eligible
+        description: Elegibilidade online sem consultar o futuro.
+      - name: is_training_eligible
+        description: Elegibilidade para label com follow-up completo e observado.
+
+  - name: int_observacoes_elegiveis
+    description: >-
+      Uma linha por Tag + cutoff elegível para treino, com label de início de
+      episódio primário em (t, t+4h].
+    config:
+      meta:
+        grain: one training-eligible equipment tag per hourly cutoff
+        target_window: open-left closed-right four-hour interval
+    columns:
+      - name: scoring_row_id
+        description: Chave herdada da grade de scoring.
+        data_tests: [not_null, unique]
+      - name: y_episode
+        description: Um se existe início de episódio observado em (t, t+4h].
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+      - name: next_episode_id
+        description: Primeiro episódio futuro elegível na janela.
+      - name: next_episode_start
+        description: Início proxy observado do próximo episódio na janela.
+      - name: lead_time_minutes
+        description: Distância exata entre cutoff e episódio, em minutos.
+      - name: label_is_censored
+        description: Sempre falso nesta relação; censurados foram excluídos.
+
+unit_tests:
+  - name: episode_start_is_censored_after_global_unavailability
+    description: >-
+      Início cujo lookback cruza gap global é censurado; igualdade ao fim mais o
+      gap permanece observável.
+    model: int_dontgo_episodios
+    given:
+      - input: ref('int_dontgo_episodio_membros')
+        rows:
+          - {contract_version: '1.0.0', episode_gap_hours: 4, is_primary_gap: true, episode_id: e1, tag: A, tipo_equipamento: Caminhao, tag_frota: F1, episode_sequence: 1, episode_anchor_time: '2025-01-01 12:00:00.000000', event_time: '2025-01-01 12:00:00.000000', ocorrencia_id: 1, is_episode_anchor: true, episode_is_left_censored: false, availability_time: '2025-01-01 12:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+          - {contract_version: '1.0.0', episode_gap_hours: 4, is_primary_gap: true, episode_id: e2, tag: A, tipo_equipamento: Caminhao, tag_frota: F1, episode_sequence: 2, episode_anchor_time: '2025-01-01 13:00:00.000000', event_time: '2025-01-01 13:00:00.000000', ocorrencia_id: 2, is_episode_anchor: true, episode_is_left_censored: false, availability_time: '2025-01-01 13:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+      - input: ref('int_telemetria_indisponibilidade_global')
+        rows:
+          - {unavailability_id: gap1, unavailable_start_exclusive: '2025-01-01 08:00:00.000000', unavailable_end_exclusive: '2025-01-01 09:00:00.000000'}
+    expect:
+      rows:
+        - {episode_id: e1, episode_start_history_is_unavailable: true, episode_start_is_observed: false}
+        - {episode_id: e2, episode_start_history_is_unavailable: false, episode_start_is_observed: true}
+
+  - name: cutoff_alignment_when_dataset_starts_on_hour
+    description: Dataset iniciado na hora exata gera cutoff após quatro horas completas.
+    model: int_scoring_cutoffs
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        active_lookback_hours: 4
+        target_horizon_hours: 4
+        scoring_frequency_hours: 1
+    given:
+      - input: ref('stg_telemetria')
+        rows:
+          - {event_time: '2025-01-01 00:00:00.000000'}
+          - {event_time: '2025-01-01 08:00:00.000000'}
+    expect:
+      rows:
+        - {prediction_timestamp: '2025-01-01 04:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+
+  - name: cutoff_alignment_ceils_subhour_dataset_start
+    description: Um microssegundo após a hora desloca o primeiro cutoff para 05h.
+    model: int_scoring_cutoffs
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        active_lookback_hours: 4
+        target_horizon_hours: 4
+        scoring_frequency_hours: 1
+    given:
+      - input: ref('stg_telemetria')
+        rows:
+          - {event_time: '2025-01-01 00:00:00.000001'}
+          - {event_time: '2025-01-01 09:00:00.000000'}
+    expect:
+      rows:
+        - {prediction_timestamp: '2025-01-01 05:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+
+  - name: scoring_activity_excludes_t_and_washout_includes_both_edges
+    description: Atividade usa [t-4h,t) e washout usa [t-4h,t].
+    model: int_scoring_grade
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        active_lookback_hours: 4
+        washout_hours: 4
+        target_horizon_hours: 4
+    given:
+      - input: ref('int_scoring_cutoffs')
+        rows:
+          - {cutoff_id: c12, prediction_timestamp: '2025-01-01 12:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+          - {cutoff_id: c13, prediction_timestamp: '2025-01-01 13:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+      - input: ref('int_equipamentos')
+        rows:
+          - {equipamento_id: ea, tag: A, tipo_equipamento: Caminhao, tag_frota: F1, localidade: Mina, tag_first_event_time: '2025-01-01 00:00:00.000000', tag_last_event_time: '2025-01-02 00:00:00.000000'}
+      - input: ref('int_telemetria_hora_tag')
+        rows:
+          - {tag: A, event_hour: '2025-01-01 08:00:00.000000', event_count: 5, first_event_time: '2025-01-01 08:00:00.000000', last_event_time: '2025-01-01 08:30:00.000000'}
+          - {tag: A, event_hour: '2025-01-01 12:00:00.000000', event_count: 7, first_event_time: '2025-01-01 12:00:00.000000', last_event_time: '2025-01-01 12:30:00.000000'}
+      - input: ref('int_dontgo_ocorrencias')
+        rows:
+          - {ocorrencia_id: 1, tag: A, event_time: '2025-01-01 08:00:00.000000'}
+      - input: ref('int_telemetria_indisponibilidade_global')
+        rows: []
+    expect:
+      rows:
+        - {prediction_timestamp: '2025-01-01 12:00:00.000000', tag: A, active_event_count: 5, washout_occurrence_count: 1, is_scoring_eligible: false, is_training_eligible: false}
+        - {prediction_timestamp: '2025-01-01 13:00:00.000000', tag: A, active_event_count: 7, washout_occurrence_count: 0, is_scoring_eligible: true, is_training_eligible: true}
+
+  - name: scoring_unavailability_uses_open_interval_boundaries
+    description: Prova interseções de lookback/follow-up com gap global aberto em (20h,21h).
+    model: int_scoring_grade
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        active_lookback_hours: 4
+        washout_hours: 4
+        target_horizon_hours: 4
+    given:
+      - input: ref('int_scoring_cutoffs')
+        rows:
+          - {cutoff_id: c16, prediction_timestamp: '2025-01-01 16:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 08:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+          - {cutoff_id: c20, prediction_timestamp: '2025-01-01 20:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 08:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+          - {cutoff_id: c21, prediction_timestamp: '2025-01-01 21:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 08:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+          - {cutoff_id: c25, prediction_timestamp: '2025-01-02 01:00:00.000000', dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 08:00:00.000000', has_complete_global_lookback: true, has_complete_global_followup: true}
+      - input: ref('int_equipamentos')
+        rows:
+          - {equipamento_id: ea, tag: A, tipo_equipamento: Caminhao, tag_frota: F1, localidade: Mina, tag_first_event_time: '2025-01-01 00:00:00.000000', tag_last_event_time: '2025-01-02 08:00:00.000000'}
+      - input: ref('int_telemetria_hora_tag')
+        rows:
+          - {tag: A, event_hour: '2025-01-01 15:00:00.000000', event_count: 1, first_event_time: '2025-01-01 15:00:00.000000', last_event_time: '2025-01-01 15:00:00.000000'}
+          - {tag: A, event_hour: '2025-01-01 19:00:00.000000', event_count: 1, first_event_time: '2025-01-01 19:00:00.000000', last_event_time: '2025-01-01 19:00:00.000000'}
+          - {tag: A, event_hour: '2025-01-02 00:00:00.000000', event_count: 1, first_event_time: '2025-01-02 00:00:00.000000', last_event_time: '2025-01-02 00:00:00.000000'}
+      - input: ref('int_dontgo_ocorrencias')
+        rows: []
+      - input: ref('int_telemetria_indisponibilidade_global')
+        rows:
+          - {unavailable_start_exclusive: '2025-01-01 20:00:00.000000', unavailable_end_exclusive: '2025-01-01 21:00:00.000000'}
+    expect:
+      rows:
+        - {prediction_timestamp: '2025-01-01 16:00:00.000000', has_lookback_unavailability: false, has_followup_unavailability: false, is_scoring_eligible: true, is_training_eligible: true}
+        - {prediction_timestamp: '2025-01-01 20:00:00.000000', has_lookback_unavailability: false, has_followup_unavailability: true, is_scoring_eligible: true, is_training_eligible: false}
+        - {prediction_timestamp: '2025-01-01 21:00:00.000000', has_lookback_unavailability: true, has_followup_unavailability: false, is_scoring_eligible: false, is_training_eligible: false}
+        - {prediction_timestamp: '2025-01-02 01:00:00.000000', has_lookback_unavailability: false, has_followup_unavailability: false, is_scoring_eligible: true, is_training_eligible: true}
+
+  - name: label_window_is_open_left_and_closed_right
+    description: Episódio em t é excluído; t+1us e t+4h entram; após t+4h não entra.
+    model: int_observacoes_elegiveis
+    overrides:
+      vars:
+        target_horizon_hours: 4
+    given:
+      - input: ref('int_scoring_grade')
+        rows:
+          - {scoring_row_id: a, prediction_timestamp: '2025-01-01 12:00:00.000000', tag: A, is_training_eligible: true}
+          - {scoring_row_id: b, prediction_timestamp: '2025-01-01 12:00:00.000000', tag: B, is_training_eligible: true}
+          - {scoring_row_id: c, prediction_timestamp: '2025-01-01 12:00:00.000000', tag: C, is_training_eligible: true}
+          - {scoring_row_id: d, prediction_timestamp: '2025-01-01 12:00:00.000000', tag: D, is_training_eligible: true}
+          - {scoring_row_id: f, prediction_timestamp: '2025-01-01 12:00:00.000000', tag: F, is_training_eligible: true}
+      - input: ref('int_dontgo_episodios')
+        rows:
+          - {episode_id: ea, tag: A, is_primary_gap: true, episode_start_is_observed: true, episode_start_proxy: '2025-01-01 12:00:00.000000'}
+          - {episode_id: eb, tag: B, is_primary_gap: true, episode_start_is_observed: true, episode_start_proxy: '2025-01-01 12:00:00.000001'}
+          - {episode_id: ec, tag: C, is_primary_gap: true, episode_start_is_observed: true, episode_start_proxy: '2025-01-01 16:00:00.000000'}
+          - {episode_id: ed, tag: D, is_primary_gap: true, episode_start_is_observed: true, episode_start_proxy: '2025-01-01 16:00:00.000001'}
+          - {episode_id: ef, tag: F, is_primary_gap: true, episode_start_is_observed: false, episode_start_proxy: '2025-01-01 13:00:00.000000'}
+    expect:
+      rows:
+        - {scoring_row_id: a, y_episode: 0, next_episode_id: null, next_episode_start: null}
+        - {scoring_row_id: b, y_episode: 1, next_episode_id: eb, next_episode_start: '2025-01-01 12:00:00.000001'}
+        - {scoring_row_id: c, y_episode: 1, next_episode_id: ec, next_episode_start: '2025-01-01 16:00:00.000000'}
+        - {scoring_row_id: d, y_episode: 0, next_episode_id: null, next_episode_start: null}
+        - {scoring_row_id: f, y_episode: 0, next_episode_id: null, next_episode_start: null}
+
+  - name: global_unavailability_includes_exact_threshold_only
+    description: Um gap exato de 900s entra; o gap seguinte de 899s não entra.
+    model: int_telemetria_indisponibilidade_global
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        global_unavailability_gap_seconds: 900
+    given:
+      - input: ref('stg_telemetria')
+        rows:
+          - {event_time: '2025-01-01 00:00:00.000000', tag: A, source_period: '2025-01'}
+          - {event_time: '2025-01-01 00:15:00.000000', tag: A, source_period: '2025-01'}
+          - {event_time: '2025-01-01 00:29:59.000000', tag: A, source_period: '2025-01'}
+    expect:
+      rows:
+        - {threshold_seconds: 900, unavailable_start_exclusive: '2025-01-01 00:00:00.000000', unavailable_end_exclusive: '2025-01-01 00:15:00.000000', gap_duration_seconds: 900, zero_full_5m_bin_count: 2, previous_source_period: '2025-01', next_source_period: '2025-01', unavailability_reason: GLOBAL_CAPTURE_GAP, invalidates_entire_4h_window: false}
+
+  - name: episode_gap_four_hour_boundaries_and_ties
+    description: >-
+      Garante que quatro horas exatas permanecem no episódio, quatro horas e
+      um microssegundo iniciam outro e empates seguem ID estável.
+    model: int_dontgo_episodio_membros
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        primary_episode_gap_hours: 4
+        episode_gap_hours: [4]
+    given:
+      - input: ref('int_dontgo_ocorrencias')
+        rows:
+          - {ocorrencia_id: 1, event_time: '2025-01-01 00:00:00.000000', availability_time: '2025-01-01 00:00:00.000000', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 100, alarme: X, criticidade_id: 1, criticidade: Crítico, row_hash: a, ocorrencia_sequence: 1, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+          - {ocorrencia_id: 2, event_time: '2025-01-01 04:00:00.000000', availability_time: '2025-01-01 04:00:00.000000', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 100, alarme: X, criticidade_id: 1, criticidade: Crítico, row_hash: b, ocorrencia_sequence: 2, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+          - {ocorrencia_id: 3, event_time: '2025-01-01 08:00:00.000001', availability_time: '2025-01-01 08:00:00.000001', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 100, alarme: X, criticidade_id: 1, criticidade: Crítico, row_hash: c, ocorrencia_sequence: 3, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+          - {ocorrencia_id: 4, event_time: '2025-01-01 08:00:00.000001', availability_time: '2025-01-01 08:00:00.000001', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 101, alarme: Y, criticidade_id: 1, criticidade: Crítico, row_hash: d, ocorrencia_sequence: 4, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+          - {ocorrencia_id: 10, event_time: '2025-01-01 04:00:00.000000', availability_time: '2025-01-01 04:00:00.000000', tag: B, tag_frota: F2, tipo_equipamento: Escavadeira, alarme_id: 200, alarme: Z, criticidade_id: 1, criticidade: Crítico, row_hash: e, ocorrencia_sequence: 1, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+    expect:
+      rows:
+        - {ocorrencia_id: 1, episode_gap_hours: 4, previous_occurrence_time: null, gap_from_previous_microseconds: null, is_episode_anchor: true, episode_sequence: 1, episode_is_left_censored: true, is_observed_episode_start: false}
+        - {ocorrencia_id: 2, episode_gap_hours: 4, previous_occurrence_time: '2025-01-01 00:00:00.000000', gap_from_previous_microseconds: 14400000000, is_episode_anchor: false, episode_sequence: 1, episode_is_left_censored: true, is_observed_episode_start: false}
+        - {ocorrencia_id: 3, episode_gap_hours: 4, previous_occurrence_time: '2025-01-01 04:00:00.000000', gap_from_previous_microseconds: 14400000001, is_episode_anchor: true, episode_sequence: 2, episode_is_left_censored: false, is_observed_episode_start: true}
+        - {ocorrencia_id: 4, episode_gap_hours: 4, previous_occurrence_time: '2025-01-01 08:00:00.000001', gap_from_previous_microseconds: 0, is_episode_anchor: false, episode_sequence: 2, episode_is_left_censored: false, is_observed_episode_start: false}
+        - {ocorrencia_id: 10, episode_gap_hours: 4, previous_occurrence_time: null, gap_from_previous_microseconds: null, is_episode_anchor: true, episode_sequence: 1, episode_is_left_censored: false, is_observed_episode_start: true}
+
+  - name: episode_gap_sensitivities_are_independent
+    description: Uma distância de três horas cria episódios em 1h/2h, mas não em 4h/8h.
+    model: int_dontgo_episodio_membros
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        primary_episode_gap_hours: 4
+        episode_gap_hours: [1, 2, 4, 8]
+    given:
+      - input: ref('int_dontgo_ocorrencias')
+        rows:
+          - {ocorrencia_id: 1, event_time: '2025-01-01 12:00:00.000000', availability_time: '2025-01-01 12:00:00.000000', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 100, alarme: X, criticidade_id: 1, criticidade: Crítico, row_hash: a, ocorrencia_sequence: 1, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+          - {ocorrencia_id: 2, event_time: '2025-01-01 15:00:00.000000', availability_time: '2025-01-01 15:00:00.000000', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 100, alarme: X, criticidade_id: 1, criticidade: Crítico, row_hash: b, ocorrencia_sequence: 2, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-01-02 00:00:00.000000'}
+    expect:
+      rows:
+        - {ocorrencia_id: 1, episode_gap_hours: 1, is_episode_anchor: true, episode_sequence: 1}
+        - {ocorrencia_id: 2, episode_gap_hours: 1, is_episode_anchor: true, episode_sequence: 2}
+        - {ocorrencia_id: 1, episode_gap_hours: 2, is_episode_anchor: true, episode_sequence: 1}
+        - {ocorrencia_id: 2, episode_gap_hours: 2, is_episode_anchor: true, episode_sequence: 2}
+        - {ocorrencia_id: 1, episode_gap_hours: 4, is_episode_anchor: true, episode_sequence: 1}
+        - {ocorrencia_id: 2, episode_gap_hours: 4, is_episode_anchor: false, episode_sequence: 1}
+        - {ocorrencia_id: 1, episode_gap_hours: 8, is_episode_anchor: true, episode_sequence: 1}
+        - {ocorrencia_id: 2, episode_gap_hours: 8, is_episode_anchor: false, episode_sequence: 1}
+
+  - name: episode_history_does_not_reset_at_month_boundary
+    description: Ocorrências separadas por três horas continuam no mesmo episódio ao virar o mês.
+    model: int_dontgo_episodio_membros
+    overrides:
+      vars:
+        contract_version: "1.0.0"
+        primary_episode_gap_hours: 4
+        episode_gap_hours: [4]
+    given:
+      - input: ref('int_dontgo_ocorrencias')
+        rows:
+          - {ocorrencia_id: 1, event_time: '2025-05-31 23:00:00.000000', availability_time: '2025-05-31 23:00:00.000000', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 100, alarme: X, criticidade_id: 1, criticidade: Crítico, row_hash: a, ocorrencia_sequence: 1, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-06-30 23:59:59.000000'}
+          - {ocorrencia_id: 2, event_time: '2025-06-01 02:00:00.000000', availability_time: '2025-06-01 02:00:00.000000', tag: A, tag_frota: F1, tipo_equipamento: Caminhao, alarme_id: 100, alarme: X, criticidade_id: 1, criticidade: Crítico, row_hash: b, ocorrencia_sequence: 2, dataset_start_time: '2025-01-01 00:00:00.000000', dataset_end_time: '2025-06-30 23:59:59.000000'}
+    expect:
+      rows:
+        - {ocorrencia_id: 1, episode_gap_hours: 4, is_episode_anchor: true, episode_sequence: 1}
+        - {ocorrencia_id: 2, episode_gap_hours: 4, is_episode_anchor: false, episode_sequence: 1}

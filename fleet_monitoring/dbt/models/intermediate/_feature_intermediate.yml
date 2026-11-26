@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  - name: int_cma_evento_lookup
+    description: >-
+      Lookup único por nome de evento CMA normalizado. Representa associação
+      ao catálogo e níveis declarados, não execução de QUANTIDADE por TEMPO.
+    config:
+      meta:
+        grain: one normalized CMA event name
+        historical_validity: unavailable
+    columns:
+      - name: cma_evento_id
+        description: Chave determinística do nome normalizado.
+        data_tests: [not_null, unique]
+      - name: evento_key
+        description: Nome do evento com trim e upper para associação.
+        data_tests: [not_null, unique]
+      - name: cma_rule_count
+        description: Regras estáticas associadas ao nome.
+      - name: has_very_high_level
+        description: Alguma regra associada declara nível Muito Alto.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+      - name: has_high_level
+        description: Alguma regra associada declara nível Alto.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+
+  - name: int_telemetria_features_hora_tag
+    description: >-
+      Agregados aditivos de telemetria por Tag + hora para construir janelas
+      point-in-time sem usar a hora do cutoff.
+    config:
+      meta:
+        grain: one equipment Tag per observed hour
+    columns:
+      - name: tag_hour_feature_id
+        description: Chave determinística de Tag + hora.
+        data_tests: [not_null, unique]
+      - name: tag
+        description: Equipamento dos eventos agregados.
+      - name: event_hour
+        description: Início da hora dos eventos em TIMESTAMP_NTZ.
+      - name: event_count
+        description: Total de eventos observados na hora.
+      - name: max_feature_event_time
+        description: Maior event_time agregado na hora.
+      - name: max_feature_availability_time
+        description: Maior availability_time agregado na hora.
+
+unit_tests:
+  - name: cma_lookup_normalizes_names_without_executing_rules
+    description: Nomes equivalentes colapsam e flags de nível preservam regras distintas.
+    model: int_cma_evento_lookup
+    given:
+      - input: ref('stg_cma_regras')
+        rows:
+          - {cma_regra_id: r1, evento: ' Low Oil ', nivel: 'Muito Alto'}
+          - {cma_regra_id: r2, evento: 'low oil', nivel: 'Alto'}
+          - {cma_regra_id: r3, evento: 'Pressure', nivel: 'Baixo'}
+    expect:
+      rows:
+        - {evento_key: LOW OIL, cma_rule_count: 2, has_very_high_level: 1, has_high_level: 1}
+        - {evento_key: PRESSURE, cma_rule_count: 1, has_very_high_level: 0, has_high_level: 0}
+
+  - name: hourly_feature_aggregation_preserves_criticality_and_cma_counts
+    description: Agregação horária soma cada família uma única vez após lookup 1:1.
+    model: int_telemetria_features_hora_tag
+    given:
+      - input: ref('stg_telemetria')
+        rows:
+          - {evento_telemetria_id: 1, event_time: '2025-01-01 10:00:00.000001', availability_time: '2025-01-01 10:00:00.000001', tag: A, alarme: Low Oil, criticidade: Crítico, is_dont_go: 1}
+          - {evento_telemetria_id: 2, event_time: '2025-01-01 10:59:59.999999', availability_time: '2025-01-01 10:59:59.999999', tag: A, alarme: Other, criticidade: Não Crítico, is_dont_go: 0}
+          - {evento_telemetria_id: 3, event_time: '2025-01-01 11:00:00.000000', availability_time: '2025-01-01 11:00:00.000000', tag: A, alarme: Low Oil, criticidade: Informacional, is_dont_go: 0}
+      - input: ref('int_cma_evento_lookup')
+        rows:
+          - {cma_evento_id: c1, evento_key: LOW OIL, has_very_high_level: 1, has_high_level: 0}
+    expect:
+      rows:
+        - {tag: A, event_hour: '2025-01-01 10:00:00.000000', event_count: 2, critical_event_count: 1, noncritical_event_count: 1, informational_event_count: 0, dontgo_occurrence_count: 1, cma_event_count: 1, cma_very_high_event_count: 1, cma_high_event_count: 0, max_feature_event_time: '2025-01-01 10:59:59.999999'}
+        - {tag: A, event_hour: '2025-01-01 11:00:00.000000', event_count: 1, critical_event_count: 0, noncritical_event_count: 0, informational_event_count: 1, dontgo_occurrence_count: 0, cma_event_count: 1, cma_very_high_event_count: 1, cma_high_event_count: 0, max_feature_event_time: '2025-01-01 11:00:00.000000'}

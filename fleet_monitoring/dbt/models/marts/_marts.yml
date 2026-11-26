@@ -1,0 +1,322 @@
+version: 2
+
+models:
+  - name: fct_features_scoring
+    description: >-
+      Uma linha por Tag + cutoff elegível para scoring, sem alvo. As 46
+      features seguem manifests/features_v1.yml e usam somente passado.
+    config:
+      meta:
+        grain: one scoring-eligible Tag per prediction timestamp
+        feature_set_version: 1.0.0
+        feature_count: 46
+    columns:
+      - name: scoring_row_id
+        description: Chave determinística da linha de scoring.
+        data_tests: [not_null, unique]
+      - name: prediction_timestamp
+        description: Cutoff lógico da decisão.
+        data_tests: [not_null]
+      - name: tag
+        description: Chave de entidade; preservada para join, proibida como feature.
+        data_tests: [not_null]
+      - name: feature_set_version
+        description: Versão congelada do registro de features.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['1.0.0']
+      - name: max_feature_event_time_24h
+        description: Maior event_time efetivamente usado nos agregados de telemetria.
+      - name: max_feature_availability_time_24h
+        description: Maior availability_time efetivamente usado nos agregados.
+      - name: cutoff_hour
+        description: Feature 1; ver registro features_v1.yml.
+      - name: day_of_week_iso
+        description: Feature 2; ver registro features_v1.yml.
+      - name: day_of_month
+        description: Feature 3; ver registro features_v1.yml.
+      - name: is_night_window_proxy
+        description: Feature 4; faixa analítica, não turno oficial.
+      - name: is_truck
+        description: Feature 5; tipo em baixa cardinalidade.
+      - name: is_fleet_793_d_2s
+        description: Feature 6; frota one-hot.
+      - name: is_fleet_793_d_3s
+        description: Feature 7; frota one-hot.
+      - name: is_fleet_793_d_4s
+        description: Feature 8; frota one-hot.
+      - name: is_fleet_793_d_5s
+        description: Feature 9; frota one-hot.
+      - name: is_fleet_letourneau_l_1850
+        description: Feature 10; frota one-hot.
+      - name: history_1h_is_complete
+        description: Feature 11; completude da janela de 1h.
+      - name: history_4h_is_complete
+        description: Feature 12; completude da janela de 4h.
+      - name: history_24h_is_complete
+        description: Feature 13; completude da janela de 24h.
+      - name: episode_history_7d_is_complete
+        description: Feature 14; completude do histórico de 7d.
+      - name: episode_history_30d_is_complete
+        description: Feature 15; completude do histórico de 30d.
+      - name: events_1h
+        description: Feature 16; eventos observados em [t-1h,t).
+      - name: events_4h
+        description: Feature 17; eventos observados em [t-4h,t).
+      - name: events_24h
+        description: Feature 18; eventos observados em [t-24h,t).
+      - name: critical_events_4h
+        description: Feature 19; eventos Crítico em [t-4h,t).
+      - name: critical_events_24h
+        description: Feature 20; eventos Crítico em [t-24h,t).
+      - name: noncritical_events_4h
+        description: Feature 21; eventos Não Crítico em [t-4h,t).
+      - name: noncritical_events_24h
+        description: Feature 22; eventos Não Crítico em [t-24h,t).
+      - name: informational_events_4h
+        description: Feature 23; eventos Informacional em [t-4h,t).
+      - name: informational_events_24h
+        description: Feature 24; eventos Informacional em [t-24h,t).
+      - name: other_events_4h
+        description: Feature 25; eventos Outros em [t-4h,t).
+      - name: other_events_24h
+        description: Feature 26; eventos Outros em [t-24h,t).
+      - name: cma_events_4h
+        description: Feature 27; associação estática ao CMA em [t-4h,t).
+      - name: cma_events_24h
+        description: Feature 28; associação estática ao CMA em [t-24h,t).
+      - name: cma_very_high_events_4h
+        description: Feature 29; eventos associados a nível Muito Alto em 4h.
+      - name: cma_very_high_events_24h
+        description: Feature 30; eventos associados a nível Muito Alto em 24h.
+      - name: cma_high_events_4h
+        description: Feature 31; eventos associados a nível Alto em 4h.
+      - name: cma_high_events_24h
+        description: Feature 32; eventos associados a nível Alto em 24h.
+      - name: dontgo_occurrences_24h
+        description: Feature 33; ocorrências originais Don't Go nas 24h passadas.
+      - name: critical_rate_4h
+        description: Feature 34; fração crítica observada em 4h.
+      - name: critical_rate_24h
+        description: Feature 35; fração crítica observada em 24h.
+      - name: cma_rate_4h
+        description: Feature 36; fração associada ao CMA em 4h.
+      - name: cma_rate_24h
+        description: Feature 37; fração associada ao CMA em 24h.
+      - name: events_per_hour_4h
+        description: Feature 38; intensidade horária na janela de 4h.
+      - name: events_per_hour_24h
+        description: Feature 39; intensidade horária na janela de 24h.
+      - name: activity_acceleration_4h_vs_24h
+        description: Feature 40; razão entre intensidades de 4h e 24h.
+      - name: prior_episode_count
+        description: Feature 41; inícios observados anteriores ao cutoff.
+      - name: episodes_7d
+        description: Feature 42; inícios observados em [t-7d,t).
+      - name: episodes_30d
+        description: Feature 43; inícios observados em [t-30d,t).
+      - name: hours_since_last_episode_start
+        description: Feature 44; horas desde o último início observado.
+      - name: has_prior_episode
+        description: Feature 45; indicador de episódio anterior.
+      - name: episode_history_exposure_days
+        description: Feature 46; exposição histórica observável do Tag em dias.
+
+  - name: fct_training_set
+    description: >-
+      Features congeladas unidas aos labels somente por scoring_row_id. Não
+      recalcula nenhuma variável após acessar o futuro.
+    config:
+      meta:
+        grain: one training-eligible Tag per prediction timestamp
+        target: y_episode
+    columns:
+      - name: scoring_row_id
+        description: Chave herdada da feature table.
+        data_tests: [not_null, unique]
+      - name: y_episode
+        description: Alvo de início observado em (t,t+4h].
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+      - name: next_episode_id
+        description: Episódio futuro associado quando y_episode é um.
+      - name: lead_time_minutes
+        description: Distância do cutoff ao início, em (0,240] quando positivo.
+
+  - name: fct_training_assignments
+    description: >-
+      Atribuições versionadas a folds, treino final, calibração, política e
+      holdout. Uma linha pode pertencer ao treino de mais de um fold.
+    config:
+      meta:
+        grain: one split plus role plus scoring row
+        purge_hours: 4
+    columns:
+      - name: assignment_id
+        description: Hash determinístico da versão, split, papel e linha.
+        data_tests: [not_null, unique]
+      - name: scoring_row_id
+        description: Linha existente no training set.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_training_set')
+                field: scoring_row_id
+      - name: split_id
+        description: Identificador estável do fold ou uso temporal.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [fold_1, fold_2, fold_3, final_train_jan_apr, calibration_may_01_15, policy_may_16_31, holdout_june]
+      - name: split_role
+        description: Papel permitido da linha no split.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [train, validation, calibration, policy, holdout]
+      - name: is_released
+        description: Falso exclusivamente para o holdout de junho.
+
+  - name: fct_policy_validation_scores
+    description: >-
+      Curadoria Gold dos scores de maio produzidos pelo job ML. Corrige os
+      timestamps de negócio para TIMESTAMP_NTZ e preserva uma linha por
+      freeze_id + scoring_row_id.
+    config:
+      meta:
+        grain: one freeze plus scoring row in the May policy period
+        source_stage: post_model_policy_validation
+    columns:
+      - name: freeze_id
+        description: Identificador imutável do pacote de modelagem.
+        data_tests: [not_null]
+      - name: scoring_row_id
+        description: Chave da observação Gold original.
+        data_tests: [not_null]
+      - name: prediction_timestamp
+        description: Cutoff de negócio preservado como TIMESTAMP_NTZ.
+        data_tests: [not_null]
+      - name: risk_score
+        description: Probabilidade calibrada de início em quatro horas.
+        data_tests: [not_null]
+      - name: is_emitted_alert
+        description: Decisão após threshold, capacidade e cooldown.
+
+  - name: fct_operational_scores
+    description: >-
+      Scores target-free curados em Gold, produzidos por versão e política
+      imutáveis. Não contém label, outcome futuro ou resultado de matching.
+    config:
+      meta:
+        grain: one scoring run plus scoring row
+        operational_status: simulated_not_actionable
+    columns:
+      - name: operational_score_id
+        description: Chave hash de scoring_run_id + scoring_row_id.
+        data_tests: [not_null, unique]
+      - name: prediction_timestamp
+        description: Cutoff de negócio em TIMESTAMP_NTZ.
+        data_tests: [not_null]
+      - name: risk_score
+        description: Probabilidade calibrada de início proxy em quatro horas.
+        data_tests: [not_null]
+      - name: is_emitted_alert
+        description: Decisão congelada após threshold, capacidade e cooldown.
+        data_tests: [not_null]
+
+  - name: mart_operational_daily
+    description: Volume diário do scoring e da fila, sem consulta a outcomes.
+    columns:
+      - name: scoring_run_id
+        data_tests: [not_null]
+      - name: prediction_date
+        data_tests: [not_null]
+
+  - name: mart_operational_alert_queue
+    description: Fila histórica simulada; não deve ser usada para despacho real.
+    columns:
+      - name: alert_id
+        data_tests: [not_null, unique]
+      - name: queue_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['SIMULATED_NOT_ACTIONABLE']
+
+  - name: dim_model_feature_importance
+    description: Importância global por ganho agregada nas 46 features originais.
+    columns:
+      - name: feature_name
+        data_tests: [not_null, unique]
+      - name: importance_rank
+        data_tests: [not_null, unique]
+      - name: feature_group
+        data_tests: [not_null]
+
+  - name: mart_holdout_daily
+    description: Tendência diária descritiva da avaliação final já liberada.
+    columns:
+      - name: prediction_date
+        data_tests: [not_null]
+      - name: tipo_equipamento
+        data_tests: [not_null]
+
+  - name: mart_holdout_metrics
+    description: Métricas finais longas, rotuladas para consumo no AI/BI.
+    columns:
+      - name: evaluation_id
+        data_tests: [not_null]
+      - name: metric_name
+        data_tests: [not_null]
+      - name: metric_value
+        data_tests: [not_null]
+
+unit_tests:
+  - name: training_assignments_purge_may_boundary_and_block_june
+    description: Igualdade no fim da calibração entra; cruzamento sai; junho fica bloqueado.
+    model: fct_training_assignments
+    overrides:
+      vars:
+        target_horizon_hours: 4
+    given:
+      - input: ref('fct_training_set')
+        rows:
+          - {scoring_row_id: cal_edge, prediction_timestamp: '2025-05-15 20:00:00.000000'}
+          - {scoring_row_id: cal_cross, prediction_timestamp: '2025-05-15 21:00:00.000000'}
+          - {scoring_row_id: policy_start, prediction_timestamp: '2025-05-16 00:00:00.000000'}
+          - {scoring_row_id: june_start, prediction_timestamp: '2025-06-01 00:00:00.000000'}
+    expect:
+      rows:
+        - {split_id: calibration_may_01_15, split_role: calibration, scoring_row_id: cal_edge, label_window_end: '2025-05-16 00:00:00.000000', is_holdout: false, is_released: true}
+        - {split_id: policy_may_16_31, split_role: policy, scoring_row_id: policy_start, label_window_end: '2025-05-16 04:00:00.000000', is_holdout: false, is_released: true}
+        - {split_id: holdout_june, split_role: holdout, scoring_row_id: june_start, label_window_end: '2025-06-01 04:00:00.000000', is_holdout: true, is_released: false}
+
+  - name: scoring_features_use_only_left_closed_right_open_history
+    description: >-
+      Inclui t-24h e t-4h, exclui a hora t e usa somente episódios estritamente
+      anteriores ao cutoff.
+    model: fct_features_scoring
+    given:
+      - input: ref('int_scoring_grade')
+        rows:
+          - {scoring_row_id: s1, contract_version: '1.0.0', cutoff_id: c1, prediction_timestamp: '2025-01-01 12:00:00.000000', equipamento_id: e1, tag: A, tipo_equipamento: Caminhao, tag_frota: '793-D 2S', localidade: Itabira, is_scoring_eligible: true, is_training_eligible: true, has_lookback_unavailability: false, dataset_start_time: '2024-12-01 00:00:00.000000', dataset_end_time: '2025-02-01 00:00:00.000000', tag_first_event_time: '2024-12-01 00:00:00.000000', tag_last_event_time: '2025-02-01 00:00:00.000000'}
+      - input: ref('int_telemetria_features_hora_tag')
+        rows:
+          - {tag: A, event_hour: '2024-12-31 12:00:00.000000', event_count: 100, critical_event_count: 10, noncritical_event_count: 20, informational_event_count: 60, other_event_count: 10, dontgo_occurrence_count: 1, cma_event_count: 30, cma_very_high_event_count: 20, cma_high_event_count: 10, min_feature_event_time: '2024-12-31 12:00:00.000001', max_feature_event_time: '2024-12-31 12:59:59.999999', max_feature_availability_time: '2024-12-31 12:59:59.999999'}
+          - {tag: A, event_hour: '2025-01-01 08:00:00.000000', event_count: 10, critical_event_count: 2, noncritical_event_count: 3, informational_event_count: 4, other_event_count: 1, dontgo_occurrence_count: 0, cma_event_count: 5, cma_very_high_event_count: 3, cma_high_event_count: 2, min_feature_event_time: '2025-01-01 08:00:00.000001', max_feature_event_time: '2025-01-01 08:59:59.999999', max_feature_availability_time: '2025-01-01 08:59:59.999999'}
+          - {tag: A, event_hour: '2025-01-01 11:00:00.000000', event_count: 5, critical_event_count: 1, noncritical_event_count: 1, informational_event_count: 2, other_event_count: 1, dontgo_occurrence_count: 0, cma_event_count: 1, cma_very_high_event_count: 1, cma_high_event_count: 0, min_feature_event_time: '2025-01-01 11:00:00.000001', max_feature_event_time: '2025-01-01 11:59:59.999999', max_feature_availability_time: '2025-01-01 11:59:59.999999'}
+          - {tag: A, event_hour: '2025-01-01 12:00:00.000000', event_count: 999, critical_event_count: 999, noncritical_event_count: 0, informational_event_count: 0, other_event_count: 0, dontgo_occurrence_count: 999, cma_event_count: 999, cma_very_high_event_count: 999, cma_high_event_count: 999, min_feature_event_time: '2025-01-01 12:00:00.000000', max_feature_event_time: '2025-01-01 12:59:59.999999', max_feature_availability_time: '2025-01-01 12:59:59.999999'}
+      - input: ref('int_dontgo_episodios')
+        rows:
+          - {episode_id: ep30, tag: A, is_primary_gap: true, episode_start_is_observed: true, episode_start_proxy: '2024-12-02 12:00:00.000000'}
+          - {episode_id: ep7, tag: A, is_primary_gap: true, episode_start_is_observed: true, episode_start_proxy: '2024-12-25 12:00:00.000000'}
+          - {episode_id: ep_now, tag: A, is_primary_gap: true, episode_start_is_observed: true, episode_start_proxy: '2025-01-01 12:00:00.000000'}
+      - input: ref('int_telemetria_indisponibilidade_global')
+        rows: []
+    expect:
+      rows:
+        - {scoring_row_id: s1, events_1h: 5, events_4h: 15, events_24h: 115, critical_events_4h: 3, critical_events_24h: 13, cma_events_4h: 6, cma_events_24h: 36, dontgo_occurrences_24h: 1, prior_episode_count: 2, episodes_7d: 1, episodes_30d: 2, hours_since_last_episode_start: 168.0, has_prior_episode: 1, episode_history_exposure_days: 31.5, history_1h_is_complete: true, history_4h_is_complete: true, history_24h_is_complete: true, episode_history_7d_is_complete: true, episode_history_30d_is_complete: true, max_feature_event_time_24h: '2025-01-01 11:59:59.999999'}

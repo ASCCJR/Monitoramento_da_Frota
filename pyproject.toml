@@ -1,15 +1,28 @@
 [project]
 name = "monitoramento-da-frota"
 version = "0.1.0"
-description = "Exemplo local de priorização de avisos de risco em uma frota"
+description = "Monitoramento de frota com telemetria, avaliação temporal e priorização de investigação"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy==1.26.4",
+    "openpyxl==3.1.5",
     "pandas==2.1.4",
+    "pyarrow==24.0.0",
+    "pyyaml==6.0.3",
+    "scikit-learn==1.8.0",
 ]
 
 [dependency-groups]
-dev = ["pytest==9.0.3"]
+databricks = ["databricks-connect==17.3.14"]
+dbt = [
+    "dbt-core==1.12.0",
+    "dbt-databricks==1.12.4",
+]
+dev = [
+    "jupytext==1.19.1",
+    "pytest==9.0.3",
+    "ruff==0.15.12",
+]
 
 [tool.uv]
 package = false

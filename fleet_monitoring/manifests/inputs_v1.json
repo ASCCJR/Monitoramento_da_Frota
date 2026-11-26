@@ -1,0 +1,97 @@
+{
+  "manifest_version": "1.0.1",
+  "generated_at": "2026-11-26T03:30:44-03:00",
+  "contract_version": "1.0.0",
+  "source_timezone": "UNCONFIRMED",
+  "inputs": [
+    {
+      "path": "data/apontamentos/desenvolver_apontamentos.parquet",
+      "role": "raw_apontamentos",
+      "format": "parquet",
+      "bytes": 6120626,
+      "records": 377907,
+      "sha256": "f86945431a36fbfc94834bcc9f187a22c4cf0cd0d7f08009e7adf64ec2641774"
+    },
+    {
+      "path": "data/telemetria/telemetry_jan.parquet",
+      "role": "raw_telemetria",
+      "period": "2025-01",
+      "format": "parquet",
+      "bytes": 34032554,
+      "records": 5400002,
+      "sha256": "6e1535c1bb965ad277e37aee1e309759f8d276424c26cec18f6586616e8ce0ad"
+    },
+    {
+      "path": "data/telemetria/telemetry_feb.parquet",
+      "role": "raw_telemetria",
+      "period": "2025-02",
+      "format": "parquet",
+      "bytes": 33083400,
+      "records": 5709935,
+      "sha256": "f66958fd54373a0bb609ae2d0b6755288b7cbd2235df8a72df6fb8f5fc345297"
+    },
+    {
+      "path": "data/telemetria/telemetry_mar.parquet",
+      "role": "raw_telemetria",
+      "period": "2025-03",
+      "format": "parquet",
+      "bytes": 33190468,
+      "records": 5688538,
+      "sha256": "4d153b9d21c354d846887db5c83278ccdf87a32499d4bfbf808d32154f898206"
+    },
+    {
+      "path": "data/telemetria/telemetry_abr.parquet",
+      "role": "raw_telemetria",
+      "period": "2025-04",
+      "format": "parquet",
+      "bytes": 37744596,
+      "records": 6475045,
+      "sha256": "3c3cb332d79906d3b9f6956156270541022420bff7c4e386c128ab108bf9593c"
+    },
+    {
+      "path": "data/telemetria/telemetry_may.parquet",
+      "role": "raw_telemetria",
+      "period": "2025-05",
+      "format": "parquet",
+      "bytes": 35288469,
+      "records": 6036291,
+      "sha256": "03d83b3220ddcfd2995e0cab115d8a67874a4c9b89099c7f8b443e3abba02279"
+    },
+    {
+      "path": "data/telemetria/telemetry_jun.parquet",
+      "role": "raw_telemetria",
+      "period": "2025-06",
+      "format": "parquet",
+      "bytes": 44941275,
+      "records": 7854243,
+      "sha256": "d6fb44b6694bcdfa9f900f86da09dfdca8c6bdacc059c456d3af1bff9041a01e"
+    },
+    {
+      "path": "docs/business/Alarmes - Regra de Negocio_V2.xlsx",
+      "role": "cma_regras_revisado",
+      "format": "xlsx",
+      "sheet": "CMA",
+      "bytes": 2142716,
+      "records": 151,
+      "sha256": "5733a647b887caf801ac21f89051fbee0c3616ed9835f6c51d08c51a192f7933"
+    },
+    {
+      "path": "docs/business/Dicionario_Dados.xlsx",
+      "role": "dicionario_revisado",
+      "format": "xlsx",
+      "sheets": [
+        "Apontamentos",
+        "Telemetria"
+      ],
+      "bytes": 8518,
+      "records": 25,
+      "sha256": "faac6036590793a89308352e51b4aa74a4e67d5859829d1b49579d115d70fdfe"
+    }
+  ],
+  "expected_totals": {
+    "raw_telemetria_records": 37164054,
+    "raw_apontamentos_records": 377907,
+    "cma_rules": 151,
+    "dictionary_fields": 25
+  }
+}

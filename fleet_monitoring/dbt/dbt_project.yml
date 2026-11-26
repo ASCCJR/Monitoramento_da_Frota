@@ -1,0 +1,40 @@
+name: vale_dont_go_v2
+version: 1.0.0
+config-version: 2
+
+profile: vale_dont_go_v2
+require-dbt-version: [">=1.12.0", "<1.13.0"]
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  contract_version: "1.0.0"
+  primary_episode_gap_hours: 4
+  episode_gap_hours: [1, 2, 4, 8]
+  global_unavailability_gap_seconds: 900
+  scoring_frequency_hours: 1
+  active_lookback_hours: 4
+  washout_hours: 4
+  target_horizon_hours: 4
+
+models:
+  vale_dont_go_v2:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +materialized: view
+      +schema: "{{ env_var('FLEET_SILVER_SCHEMA', 'fleet_silver') }}"
+      +tags: ["v2", "silver", "staging"]
+    intermediate:
+      +materialized: table
+      +schema: "{{ env_var('FLEET_SILVER_SCHEMA', 'fleet_silver') }}"
+      +tags: ["v2", "silver", "intermediate"]
+    marts:
+      +materialized: table
+      +schema: "{{ env_var('FLEET_GOLD_SCHEMA', 'fleet_gold') }}"
+      +tags: ["v2", "gold", "features"]

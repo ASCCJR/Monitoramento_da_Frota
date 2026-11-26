@@ -5,3 +5,13 @@ __pycache__/
 .databricks/
 .databrickscfg
 .env
+.env.*
+*.token
+.bundle/
+.vscode/
+.ipynb_checkpoints/
+outputs/
+fleet_monitoring/dbt/target/
+fleet_monitoring/dbt/logs/
+fleet_monitoring/dbt/dbt_packages/
+fleet_monitoring/dbt/.user.yml
