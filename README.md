@@ -1,11 +1,11 @@
 # Monitoramento da frota
 
-Dashboard e assistente de dados para equipes de manutenção priorizarem quais
+Dashboard com Genie integrado para equipes de manutenção priorizarem quais
 caminhões investigar, conferirem os registros e consultarem ocorrências anteriores.
 
-![Conceito de central de manutenção com a fila da frota na TV, a avaliação de um caminhão no iPad e uma consulta ao Genie no celular](assets/monitoramento-em-dispositivos.png)
+![TV com a aba Acompanhamento e o Genie aberto ao lado do dashboard, iPad com Equipamento e celular com Histórico](assets/monitoramento-em-dispositivos.png)
 
-*Conceito de uso em uma central de manutenção, ilustrado a partir das telas da demonstração com dados históricos.*
+*Conceito de uso em uma central de manutenção. A TV, o iPad e o celular exibem abas do mesmo dashboard, com o Genie aberto ao lado do painel na TV.*
 
 **1º lugar em Análise Avançada de Dados · Programa Desenvolver 2026 da Vale**
 
@@ -22,9 +22,9 @@ registros de nível do líquido de arrefecimento no primeiro caminhão e quatro
 no segundo.
 
 A equipe pode começar pela fila, abrir a avaliação do caminhão em
-**Equipamento** e consultar avisos e ocorrências no **Histórico**. O Genie
-usa os mesmos dados para responder a perguntas como “Por qual caminhão devo
-começar e quais registros devo conferir?”
+**Equipamento** e consultar avisos e ocorrências no **Histórico**. No
+próprio dashboard, basta abrir o **Genie** para perguntar “Por qual caminhão
+devo começar e quais registros devo conferir?”
 
 <details>
 <summary>Ver as telas reais da demonstração</summary>
@@ -32,9 +32,10 @@ começar e quais registros devo conferir?”
 ### Acompanhamento
 
 O resumo do recorte mostra 29 caminhões, dois sinais para investigar, um
-equipamento com ocorrência registrada e sete com dados a verificar.
+equipamento com ocorrência registrada e sete com dados a verificar. O Genie
+aparece na lateral do painel.
 
-![Painel de Acompanhamento às 10h de 15/06/2025, com a fila de investigação e os registros a conferir](assets/acompanhamento.png)
+![Acompanhamento às 10h de 15/06/2025, com indicadores, fila, registros, ocorrências, dados a verificar e Genie na lateral](assets/acompanhamento.png)
 
 ### Equipamento
 
@@ -42,14 +43,14 @@ No caminhão CA65926, o sinal continuava prioritário às 10h. O aviso das 09h
 ainda estava dentro do intervalo mínimo de quatro horas entre avisos. A tela
 mostra os registros das 06h até antes das 10h.
 
-![Avaliação do caminhão CA65926 às 10h, janela de registros e aviso anterior](assets/equipamento.png)
+![Aba Equipamento com avaliação do caminhão CA65926 às 10h, registros de telemetria e evolução do risco](assets/equipamento.png)
 
 ### Histórico
 
 As barras contam caminhões distintos por dia com avisos do sistema e com
 registros de Don’t Go. Um caminhão pode aparecer nos dois grupos.
 
-![Histórico de 8 a 15 de junho com filtros e comparação diária de caminhões](assets/historico.png)
+![Aba Histórico de 8 a 15 de junho, com filtros, gráfico diário, comparação por equipamento e sequência de registros](assets/historico.png)
 
 ### Genie
 
