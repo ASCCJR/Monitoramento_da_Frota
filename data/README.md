@@ -1,6 +1,6 @@
 # Dados de entrada
 
-O projeto usa as nove entradas completas abaixo. Os arquivos da Vale foram fornecidos no desafio de Análise Avançada de Dados do Programa Desenvolver 2026. Os caminhos na tabela são relativos à raiz do repositório.
+A reprodução usa as nove entradas da tabela. Os arquivos da Vale foram fornecidos no desafio de Análise Avançada de Dados do Programa Desenvolver 2026. Os caminhos na tabela são relativos à raiz do repositório.
 
 | Entrada | Conteúdo e papel no pipeline |
 | --- | --- |
@@ -15,6 +15,11 @@ O projeto usa as nove entradas completas abaixo. Os arquivos da Vale foram forne
 | `docs/business/Dicionario_Dados.xlsx` | Definições dos campos documentados nas abas `Apontamentos` e `Telemetria`. |
 
 As duas planilhas tiveram os campos de autoria e última edição removidos. As abas e as células foram preservadas.
+
+## Exemplos do desafio
+
+- **Telemetria.** Acompanhe a sequência de eventos e veja como um registro de Don’t Go aparece na coluna `Is_Dont_Go`. [desenvolver_dontgo.xlsx](exemplos/desenvolver_dontgo.xlsx)
+- **Apontamentos.** Veja os horários de início e fim e as classes `Operando`, `Manutenção`, `Parado` e `Hibernando`. [desenvolver_apontamentos.xlsx](exemplos/desenvolver_apontamentos.xlsx)
 
 ## Verificação local
 
