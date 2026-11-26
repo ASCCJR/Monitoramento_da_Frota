@@ -13,6 +13,8 @@ Desenvolvi o trabalho premiado *Antecipação de Alertas Críticos em Frotas de
 Mineração*. Depois da submissão, implementei a evolução no Databricks, da
 preparação da telemetria à lista de investigação, com dashboard AI/BI e Genie.
 
+[Relatório submetido à Vale (cópia pública em PDF)](docs/relatorio-da-competicao.pdf)
+
 ## Uma investigação na prática
 
 Às **10h de 15/06/2025**, no recorte histórico de 29 caminhões, a lista de
