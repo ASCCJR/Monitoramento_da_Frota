@@ -9,9 +9,10 @@ caminhões investigar, conferirem os registros e consultarem ocorrências anteri
 
 **1º lugar em Análise Avançada de Dados · Programa Desenvolver 2026 da Vale**
 
-Desenvolvi o trabalho premiado *Antecipação de Alertas Críticos em Frotas de
-Mineração*. Depois da submissão, implementei a evolução no Databricks, da
-preparação da telemetria à lista de investigação, com dashboard AI/BI e Genie.
+A versão ampliada do projeto *Antecipação de Alertas Críticos em Frotas de
+Mineração* recebeu o primeiro lugar. O repositório documenta o fluxo no
+Databricks, da preparação da telemetria à fila de investigação, com dashboard
+AI/BI e Genie.
 
 [Relatório submetido à Vale (cópia pública em PDF)](docs/relatorio-da-competicao.pdf)
 
