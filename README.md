@@ -9,7 +9,7 @@ caminhões investigar, conferirem os registros e consultarem ocorrências anteri
 
 **1º lugar em Análise Avançada de Dados · Programa Desenvolver 2026 da Vale**
 
-A versão ampliada do projeto *Antecipação de Alertas Críticos em Frotas de
+O projeto *Antecipação de Alertas Críticos em Frotas de
 Mineração* recebeu o primeiro lugar. O repositório documenta o fluxo no
 Databricks, da preparação da telemetria à fila de investigação, com dashboard
 AI/BI e Genie.
