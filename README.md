@@ -61,6 +61,18 @@ líquido de arrefecimento e nenhum novo aviso às 10h.
 
 </details>
 
+## Construído no Databricks
+
+| <img src="assets/icons/databricks.svg" width="44" height="44" alt="Infraestrutura"> | <img src="assets/icons/medallion.svg" width="44" height="44" alt="Camadas de dados"> | <img src="assets/icons/dbt.svg" width="44" height="44" alt="Transformações"> | <img src="assets/icons/mlflow.svg" width="44" height="44" alt="Experimentos"> | <img src="assets/icons/aibi.svg" width="44" height="44" alt="Painel visual"> | <img src="assets/icons/genie.svg" width="44" height="44" alt="Assistente de dados"> |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Databricks**<br>Compute e Unity Catalog | **Medallion**<br>Bronze · Silver · Gold | **dbt**<br>Transformações | **MLflow**<br>Experimentos e registro | **AI/BI Dashboards**<br>Painel de investigação | **Genie**<br>Consultas em linguagem natural |
+
+O PySpark carrega a telemetria e os apontamentos na Bronze. O dbt organiza
+os eventos e os episódios na Silver e gera 46 features por equipamento e
+hora na Gold. O modelo LightGBM é registrado no MLflow. As prioridades e os
+registros chegam ao dashboard e ao Genie pelas mesmas views.
+[Detalhes da arquitetura](docs/arquitetura-e-avaliacao.md#da-telemetria-à-investigação)
+
 ## Avaliação em junho de 2025
 
 O teste retrospectivo cobre **17.203 observações de 31 equipamentos**. A

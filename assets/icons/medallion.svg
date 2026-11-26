@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none">
+  <title>Camadas Bronze, Silver e Gold</title>
+  <rect x="3" y="3" width="90" height="90" rx="20" fill="#1E242D" stroke="#3B4654" stroke-width="2"/>
+  <g stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m24 59 24 13 24-13" stroke="#CE956D"/>
+    <path d="m24 48 24 13 24-13" stroke="#BED0DF"/>
+    <path d="m24 36 24-13 24 13-24 13-24-13Z" stroke="#F4CD76"/>
+  </g>
+</svg>
